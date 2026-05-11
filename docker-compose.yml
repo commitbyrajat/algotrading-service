@@ -1,0 +1,42 @@
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: algotrading-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    image: maven:3.9.9-eclipse-temurin-21
+    container_name: algotrading-app
+    working_dir: /workspace
+    ports:
+      - "8080:8080"
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./:/workspace
+      - ~/.m2/repository:/root/.m2/repository
+#      - ~/.m2/settings.xml:/root/.m2/settings.xml:ro
+    environment:
+      KITE_API_KEY: ${KITE_API_KEY}
+      KITE_API_SECRET: ${KITE_API_SECRET}
+      KITE_USER_ID: ${KITE_USER_ID}
+      KITE_REDIRECT_URL: ${KITE_REDIRECT_URL:-http://127.0.0.1:8080/api/v1/kite/callback}
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+    command: >
+      sh -c "mvn clean install &&
+             mvn spring-boot:run"
+    restart: unless-stopped
+
+volumes:
+  redis_data:

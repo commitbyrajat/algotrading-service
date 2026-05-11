@@ -1,0 +1,28 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: algotrading-service
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+      # password: ${SPRING_DATA_REDIS_PASSWORD:}   # uncomment if Redis auth is enabled
+      timeout: 2000ms
+      connect-timeout: 2000ms
+
+kite:
+  # Obtained from Zerodha Developer Console after creating a Kite Connect app
+  api-key: ${KITE_API_KEY:your-api-key-here}
+  # api_secret is used once per session to exchange request_token → access_token
+  api-secret: ${KITE_API_SECRET:your-api-secret-here}
+  # user-id is your Zerodha client ID (e.g. AB1234)
+  user-id: ${KITE_USER_ID:your-user-id-here}
+  # Must exactly match the Redirect URL set in the Kite Connect Developer Console
+  redirect-url: ${KITE_REDIRECT_URL:http://127.0.0.1:8080/kite/callback}
+
+logging:
+  level:
+    root: INFO
+    com.algotrading.app: DEBUG
