@@ -27,6 +27,7 @@
     <maven.compiler.release>21</maven.compiler.release>
     <ta4j.version>0.22.6</ta4j.version>
     <kiteconnect.version>4.0.0</kiteconnect.version>
+    <springdoc.version>3.0.3</springdoc.version>
   </properties>
 
   <dependencies>
@@ -38,6 +39,11 @@
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-validation</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springdoc</groupId>
+      <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+      <version>${springdoc.version}</version>
     </dependency>
 
     <!-- ==================== Spring Data Redis ==================== -->

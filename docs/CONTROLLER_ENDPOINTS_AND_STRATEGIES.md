@@ -153,6 +153,71 @@ What happens internally:
 - Calls `KiteAuthService.isAuthenticated()`.
 - That checks whether `KiteSessionStore` currently holds a session.
 
+## Instrument Controller
+
+Class: `InstrumentController`  
+Base path: `/api/v1/instruments`
+
+The instrument controller retrieves Zerodha Kite's instrument master. The official API returns a large gzipped CSV dump from `GET /instruments`; this service exposes the parsed rows as JSON.
+
+Official reference: `https://kite.trade/docs/connect/v3/market-data-and-instruments/`
+
+### List Instruments
+
+Method:
+
+```http
+GET /api/v1/instruments
+```
+
+Controller method:
+
+```java
+listInstruments(exchange)
+```
+
+Purpose:
+
+Returns the full list of tradable instruments across exchanges.
+
+Input:
+
+Optional query parameters:
+
+| Name | Required | Example | Purpose |
+|---|---|---|---|
+| `exchange` | No | `NSE` | Restricts the list to one exchange |
+
+Output:
+
+HTTP `200 OK`
+
+```json
+[
+  {
+    "instrumentToken": 408065,
+    "exchangeToken": 1594,
+    "tradingSymbol": "INFY",
+    "name": "INFOSYS",
+    "lastPrice": 0.0,
+    "expiry": null,
+    "strike": null,
+    "tickSize": 0.05,
+    "lotSize": 1,
+    "instrumentType": "EQ",
+    "segment": "NSE",
+    "exchange": "NSE"
+  }
+]
+```
+
+What happens internally:
+
+- Calls `InstrumentService.listInstruments(exchange)`.
+- The service delegates to `InstrumentPort`.
+- `KiteInstrumentAdapter` calls `KiteConnect#getInstruments()` or `KiteConnect#getInstruments(exchange)`.
+- Zerodha SDK types are mapped to `InstrumentResponse` before returning from the controller.
+
 ## Strategy Controller
 
 Class: `StrategyController`  

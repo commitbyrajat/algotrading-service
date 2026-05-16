@@ -3,6 +3,14 @@ package com.algotrading.app.controller;
 import com.algotrading.app.model.HistoricalDataRequest;
 import com.algotrading.app.model.StrategyDecision;
 import com.algotrading.app.service.TradingStrategyService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.ArraySchema;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -32,6 +40,10 @@ import java.util.List;
  */
 @RestController
 @RequestMapping("/api/v1/strategies")
+@Tag(
+        name = "Strategies",
+        description = "Strategy discovery and on-demand technical strategy evaluation using Kite historical candle data."
+)
 public class StrategyController {
 
     private final TradingStrategyService tradingStrategyService;
@@ -44,6 +56,19 @@ public class StrategyController {
      * List all registered strategy names.
      */
     @GetMapping
+    @Operation(
+            summary = "List registered strategies",
+            description = "Returns the strategy names that can be passed to the evaluate endpoint."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Registered strategy names returned",
+                    content = @Content(mediaType = "application/json",
+                            array = @ArraySchema(schema = @Schema(
+                                    implementation = String.class,
+                                    example = "SMA_CROSSOVER")))),
+            @ApiResponse(responseCode = "500", description = "Unexpected error",
+                    content = @Content)
+    })
     public ResponseEntity<List<String>> listStrategies() {
         return ResponseEntity.ok(tradingStrategyService.listStrategies());
     }
@@ -58,11 +83,61 @@ public class StrategyController {
      * @param interval candle interval, e.g. {@code day}, {@code 15minute}
      */
     @GetMapping("/{name}/evaluate")
+    @Operation(
+            summary = "Evaluate a strategy",
+            description = """
+                    Evaluates the named strategy over Kite historical candles for the supplied instrument token,
+                    date range, and interval. The response is a decision only; this endpoint never places orders.
+                    """
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Strategy evaluated successfully",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = StrategyDecision.class))),
+            @ApiResponse(responseCode = "400", description = "Invalid token, date range, or interval",
+                    content = @Content),
+            @ApiResponse(responseCode = "401", description = "No active Kite session",
+                    content = @Content),
+            @ApiResponse(responseCode = "404", description = "Strategy name is not registered",
+                    content = @Content),
+            @ApiResponse(responseCode = "502", description = "Kite market-data lookup failed",
+                    content = @Content),
+            @ApiResponse(responseCode = "500", description = "Unexpected error",
+                    content = @Content)
+    })
     public ResponseEntity<StrategyDecision> evaluate(
+            @Parameter(
+                    description = "Registered strategy name returned by GET /api/v1/strategies.",
+                    required = true,
+                    example = "SMA_CROSSOVER"
+            )
             @PathVariable String name,
+            @Parameter(
+                    description = "Kite instrument token to evaluate, for example 256265 for NIFTY 50.",
+                    required = true,
+                    example = "256265"
+            )
             @RequestParam String token,
+            @Parameter(
+                    description = "Start date for historical candles in ISO-8601 yyyy-MM-dd format.",
+                    required = true,
+                    example = "2024-01-01"
+            )
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @Parameter(
+                    description = "End date for historical candles in ISO-8601 yyyy-MM-dd format. Must be on or after from.",
+                    required = true,
+                    example = "2024-06-30"
+            )
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @Parameter(
+                    description = "Kite candle interval. Defaults to day when omitted.",
+                    example = "day",
+                    schema = @Schema(allowableValues = {
+                            "minute", "3minute", "5minute", "10minute", "15minute", "30minute",
+                            "60minute", "day"
+                    })
+            )
             @RequestParam(defaultValue = "day") String interval) {
 
         HistoricalDataRequest request = new HistoricalDataRequest(token, from, to, interval);

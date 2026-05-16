@@ -4,6 +4,14 @@ import com.algotrading.app.order.OrderRequest;
 import com.algotrading.app.order.OrderService;
 import com.algotrading.app.order.OrderStatusResponse;
 import com.algotrading.app.order.PlacedOrderResponse;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import org.springframework.http.HttpStatus;
@@ -30,6 +38,10 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 @RequestMapping("/api/v1/orders")
+@Tag(
+        name = "Orders",
+        description = "Explicit Zerodha Kite order placement and order-status endpoints. Strategy signals never place orders automatically."
+)
 public class OrderController {
 
     private final OrderService orderService;
@@ -57,6 +69,47 @@ public class OrderController {
      * </pre>
      */
     @PostMapping
+    @Operation(
+            summary = "Place a Kite order",
+            description = """
+                    Places a new order through Kite. This endpoint is the only API that sends an order
+                    to the broker; evaluating a strategy only returns a signal and does not call this API.
+                    """
+    )
+    @io.swagger.v3.oas.annotations.parameters.RequestBody(
+            required = true,
+            description = """
+                    Order details accepted by Kite. Use price 0 for MARKET orders.
+                    triggerPrice is only required for stop-loss order types such as SL or SL-M.
+                    """,
+            content = @Content(mediaType = "application/json",
+                    schema = @Schema(implementation = OrderRequest.class),
+                    examples = @ExampleObject(name = "Market buy", value = """
+                            {
+                              "tradingSymbol": "INFY",
+                              "exchange": "NSE",
+                              "transactionType": "BUY",
+                              "quantity": 10,
+                              "orderType": "MARKET",
+                              "product": "CNC",
+                              "price": 0,
+                              "triggerPrice": 0
+                            }
+                            """))
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "Order placed successfully",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = PlacedOrderResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Invalid order request",
+                    content = @Content),
+            @ApiResponse(responseCode = "401", description = "No active Kite session or Kite rejected authentication",
+                    content = @Content),
+            @ApiResponse(responseCode = "502", description = "Kite order service failed",
+                    content = @Content),
+            @ApiResponse(responseCode = "500", description = "Unexpected error",
+                    content = @Content)
+    })
     public ResponseEntity<PlacedOrderResponse> placeOrder(
             @RequestBody @Valid OrderRequest request) {
         PlacedOrderResponse response = orderService.placeOrder(request);
@@ -69,7 +122,29 @@ public class OrderController {
      * <pre>GET /api/v1/orders/{orderId}/status</pre>
      */
     @GetMapping("/{orderId}/status")
+    @Operation(
+            summary = "Get Kite order status",
+            description = "Fetches the latest broker status for an existing Kite order id."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Order status returned successfully",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = OrderStatusResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Order id is blank or invalid",
+                    content = @Content),
+            @ApiResponse(responseCode = "401", description = "No active Kite session",
+                    content = @Content),
+            @ApiResponse(responseCode = "502", description = "Kite order-status lookup failed",
+                    content = @Content),
+            @ApiResponse(responseCode = "500", description = "Unexpected error",
+                    content = @Content)
+    })
     public ResponseEntity<OrderStatusResponse> getOrderStatus(
+            @Parameter(
+                    description = "Kite order id returned by the order-placement API.",
+                    required = true,
+                    example = "240516000001234"
+            )
             @PathVariable @NotBlank String orderId) {
         return ResponseEntity.ok(orderService.getOrderStatus(orderId));
     }

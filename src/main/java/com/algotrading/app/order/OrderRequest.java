@@ -1,7 +1,6 @@
 package com.algotrading.app.order;
 
-import com.fasterxml.jackson.annotation.JsonSetter;
-import com.fasterxml.jackson.annotation.Nulls;
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.Objects;
 
 /**
@@ -35,14 +34,23 @@ import java.util.Objects;
  * @param triggerPrice     trigger price for SL / SL-M orders;
  *                         {@code null}/omitted/0 otherwise
  */
+@Schema(description = "Order details required to place one explicit Zerodha Kite order.")
 public record OrderRequest(
+        @Schema(description = "Tradable symbol exactly as listed by Kite.", example = "INFY", requiredMode = Schema.RequiredMode.REQUIRED)
         String  tradingSymbol,
+        @Schema(description = "Kite exchange segment for the symbol.", example = "NSE", allowableValues = {"NSE", "BSE", "NFO", "BFO", "CDS", "MCX"}, requiredMode = Schema.RequiredMode.REQUIRED)
         String  exchange,
+        @Schema(description = "Order side.", example = "BUY", allowableValues = {"BUY", "SELL"}, requiredMode = Schema.RequiredMode.REQUIRED)
         String  transactionType,
+        @Schema(description = "Number of shares or lots to place. Must be greater than zero.", example = "10", minimum = "1", requiredMode = Schema.RequiredMode.REQUIRED)
         Integer quantity,
+        @Schema(description = "Kite order type. MARKET orders should use price 0.", example = "MARKET", allowableValues = {"MARKET", "LIMIT", "SL", "SL-M"}, requiredMode = Schema.RequiredMode.REQUIRED)
         String  orderType,
+        @Schema(description = "Kite product type: CNC for delivery, MIS for intraday, NRML for F&O carry-forward.", example = "CNC", allowableValues = {"CNC", "MIS", "NRML"}, requiredMode = Schema.RequiredMode.REQUIRED)
         String  product,
+        @Schema(description = "Limit price. Use 0 or omit for MARKET orders.", example = "0", minimum = "0")
         Double  price,
+        @Schema(description = "Trigger price for SL and SL-M orders. Use 0 or omit for non-stop-loss orders.", example = "0", minimum = "0")
         Double  triggerPrice
 ) {
     /**

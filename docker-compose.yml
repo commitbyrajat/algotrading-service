@@ -38,5 +38,21 @@ services:
              mvn spring-boot:run"
     restart: unless-stopped
 
+  openapi-mcp:
+    image: evilfreelancer/openapi-to-mcp:latest
+    container_name: algotrading-openapi-mcp
+    ports:
+      - "3100:3100"
+    depends_on:
+      - app
+    environment:
+      MCP_SERVER_NAME: algotrading-service-mcp
+      MCP_HOST: 0.0.0.0
+      MCP_PORT: 3100
+      MCP_OPENAPI_SPEC_URL: http://app:8080/v3/api-docs
+      MCP_API_BASE_URL: http://app:8080
+      MCP_TOOL_PREFIX: algotrading_
+    restart: unless-stopped
+
 volumes:
   redis_data:

@@ -19,10 +19,11 @@ Production-grade algorithmic trading framework built on:
 This service exposes a REST API that:
 
 1. Authenticates with Zerodha's Kite Connect via an OAuth-style callback flow
-2. Fetches historical OHLCV candles from Kite
-3. Evaluates pluggable technical strategies (SMA Crossover, RSI Mean Reversion, GAINZ_ALPHA_V2)
-4. Places and monitors orders via Kite order APIs
-5. Caches the access token in Redis so a server restart does not require re-authentication
+2. Lists tradable instruments from Kite's instrument master as JSON
+3. Fetches historical OHLCV candles from Kite
+4. Evaluates pluggable technical strategies (SMA Crossover, RSI Mean Reversion, GAINZ_ALPHA_V2)
+5. Places and monitors orders via Kite order APIs
+6. Caches the access token in Redis so a server restart does not require re-authentication
 
 **Strategy evaluation and order placement are explicitly decoupled.**
 A strategy signal never automatically places an order.
@@ -34,7 +35,8 @@ A strategy signal never automatically places an order.
 ```
 ┌───────────────────────────────────────────────────────┐
 │                    REST Controllers                    │
-│  KiteAuthController  StrategyController  OrderController│
+│ KiteAuthController        InstrumentController        │
+│ StrategyController        OrderController             │
 └────────────┬───────────────┬────────────────┬─────────┘
              │               │                │
      ┌───────▼──────┐ ┌──────▼──────┐ ┌──────▼──────┐
@@ -155,7 +157,7 @@ Services exposed:
        ?request_token=xxx&action=login&status=success
 4. Server exchanges request_token → access_token (SDK does SHA-256 internally)
 5. access_token stored in Redis with 24h TTL
-6. All strategy/order endpoints are now usable
+6. All Kite-backed endpoints are now usable
 ```
 
 ### On Application Restart
@@ -317,6 +319,50 @@ curl http://localhost:8080/api/v1/kite/status
 
 ---
 
+### Instruments
+
+#### List All Instruments
+```bash
+curl http://localhost:8080/api/v1/instruments
+```
+
+Returns Kite's full instrument master as parsed JSON. The response can be large because it includes all tradable instruments across exchanges.
+
+#### List Instruments by Exchange
+```bash
+curl "http://localhost:8080/api/v1/instruments?exchange=NSE"
+```
+
+#### Example Response
+```json
+[
+  {
+    "instrumentToken": 408065,
+    "exchangeToken": 1594,
+    "tradingSymbol": "INFY",
+    "name": "INFOSYS",
+    "lastPrice": 0.0,
+    "expiry": null,
+    "strike": null,
+    "tickSize": 0.05,
+    "lotSize": 1,
+    "instrumentType": "EQ",
+    "segment": "NSE",
+    "exchange": "NSE"
+  }
+]
+```
+
+#### Query Parameter Reference
+
+| Parameter | Required | Description | Example |
+|---|---|---|---|
+| `exchange` | No | Restricts the list to one exchange. Omit it to return all instruments. | `NSE`, `BSE`, `NFO`, `MCX` |
+
+Use `instrumentToken` from this endpoint as the `token` query parameter for strategy evaluation.
+
+---
+
 ### Strategy Evaluation
 
 #### List All Strategies
@@ -348,7 +394,7 @@ curl "http://localhost:8080/api/v1/strategies/GAINZ_ALPHA_V2/evaluate\
 | Parameter | Description | Example |
 |---|---|---|
 | `{strategyName}` | Path variable — registered strategy name | `SMA_CROSSOVER`, `GAINZ_ALPHA_V2` |
-| `token` | **Zerodha instrument token** — NOT the access_token. Find tokens via Kite's instrument dump | `256265` (NIFTY 50 index) |
+| `token` | **Zerodha instrument token** — NOT the access_token. Find tokens via `GET /api/v1/instruments` | `256265` (NIFTY 50 index) |
 | `from` | Historical candle start date (ISO 8601) | `2024-01-01` |
 | `to` | Historical candle end date (ISO 8601) | `2024-06-30` |
 | `interval` | Candle granularity | `minute`, `5minute`, `15minute`, `30minute`, `60minute`, `day` |
@@ -440,7 +486,8 @@ curl http://localhost:8080/api/v1/orders/250101000001234/status
 | INFY | `408065` | NSE |
 | RELIANCE | `738561` | NSE |
 
-> Get the full instrument list: `https://api.kite.trade/instruments`
+> Get the full parsed instrument list from this service: `GET /api/v1/instruments`
+> Filter by exchange when possible, for example: `GET /api/v1/instruments?exchange=NSE`
 
 ---
 
@@ -502,6 +549,7 @@ algotrading-service/
     │   │   │   ├── KiteConfig.java
     │   │   │   └── KiteProperties.java
     │   │   ├── controller/
+    │   │   │   ├── InstrumentController.java
     │   │   │   ├── KiteAuthController.java
     │   │   │   ├── OrderController.java
     │   │   │   └── StrategyController.java
