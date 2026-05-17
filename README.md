@@ -454,7 +454,29 @@ curl -X POST http://localhost:8080/api/v1/orders \
     "orderType":       "LIMIT",
     "product":         "CNC",
     "price":           1750.50
+}'
+```
+
+#### Exit a Position (Market Sell)
+```bash
+curl -X POST http://localhost:8080/api/v1/orders/exit \
+  -H "Content-Type: application/json" \
+  -d '{
+    "tradingSymbol": "INFY",
+    "exchange":      "NSE",
+    "quantity":      1,
+    "orderType":     "MARKET",
+    "product":       "CNC",
+    "price":         0
   }'
+# Response 201 includes "transactionType":"SELL"
+```
+
+#### List Successfully Purchased Orders
+```bash
+curl http://localhost:8080/api/v1/orders/purchased
+# Response 200:
+# [{"orderId":"250101000001234","tradingSymbol":"INFY","transactionType":"BUY","status":"COMPLETE","filledQuantity":1}]
 ```
 
 #### Check Order Status

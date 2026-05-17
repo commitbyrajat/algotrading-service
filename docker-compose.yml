@@ -36,6 +36,12 @@ services:
     command: >
       sh -c "mvn clean install &&
              mvn spring-boot:run"
+    healthcheck:
+      test: ["CMD-SHELL", "timeout 5 bash -c ': > /dev/tcp/127.0.0.1/8080'"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
     restart: unless-stopped
 
   openapi-mcp:
@@ -44,7 +50,8 @@ services:
     ports:
       - "3100:3100"
     depends_on:
-      - app
+      app:
+        condition: service_healthy
     environment:
       MCP_SERVER_NAME: algotrading-service-mcp
       MCP_HOST: 0.0.0.0

@@ -419,6 +419,119 @@ Safety point:
 
 This endpoint places real orders. It should only be called deliberately.
 
+### List Purchased Orders
+
+Method:
+
+```http
+GET /api/v1/orders/purchased
+```
+
+Controller method:
+
+```java
+listPurchasedOrders()
+```
+
+Purpose:
+
+Lists successfully purchased orders from the Kite order book. The service returns only orders where:
+
+- `transactionType` is `BUY`
+- `status` is `COMPLETE`
+- `filledQuantity` is greater than `0`
+
+Output:
+
+HTTP `200 OK`
+
+```json
+[
+  {
+    "orderId": "250101000001234",
+    "tradingSymbol": "INFY",
+    "exchange": "NSE",
+    "product": "CNC",
+    "orderType": "MARKET",
+    "transactionType": "BUY",
+    "quantity": 1,
+    "filledQuantity": 1,
+    "price": 0.0,
+    "averagePrice": 1725.45,
+    "status": "COMPLETE",
+    "orderTimestamp": "2026-05-16T10:15:30Z"
+  }
+]
+```
+
+### Exit Position
+
+Method:
+
+```http
+POST /api/v1/orders/exit
+```
+
+Alias:
+
+```http
+POST /api/v1/orders/sell
+```
+
+Controller method:
+
+```java
+exitPosition(request)
+```
+
+Purpose:
+
+Places a real `SELL` order through Zerodha Kite to exit a position. The request body does not include `transactionType`; the service always submits `SELL`.
+
+Input:
+
+JSON request body:
+
+```json
+{
+  "tradingSymbol": "INFY",
+  "exchange": "NSE",
+  "quantity": 1,
+  "orderType": "MARKET",
+  "product": "CNC",
+  "price": 0,
+  "triggerPrice": 0
+}
+```
+
+Fields:
+
+| Field | Required | Example | Purpose |
+|---|---|---|---|
+| `tradingSymbol` | Yes | `INFY` | Exchange trading symbol |
+| `exchange` | Yes | `NSE` | Exchange segment |
+| `quantity` | Yes | `1` | Number of shares or lots to sell |
+| `orderType` | Yes | `MARKET` | Kite order type |
+| `product` | Yes | `CNC` | Kite product type |
+| `price` | No | `0` | Limit price; usually `0` for market orders |
+| `triggerPrice` | No | `0` | Trigger price for stop-loss orders |
+
+Output:
+
+HTTP `201 Created`
+
+```json
+{
+  "orderId": "250101000001234",
+  "tradingSymbol": "INFY",
+  "transactionType": "SELL",
+  "quantity": 1,
+  "price": 0.0,
+  "status": "OPEN",
+  "placedAt": "2026-05-11T16:55:00Z"
+}
+```
+
 ### Get Order Status
 
 Method:

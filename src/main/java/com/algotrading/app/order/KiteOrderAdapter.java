@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
+import java.util.Comparator;
 import java.util.List;
 
 /**
@@ -84,6 +85,23 @@ public class KiteOrderAdapter implements OrderPort {
             throw new MarketDataException(
                     "Failed to place order for " + request.tradingSymbol()
                             + ": " + ex.getMessage(), ex);
+        }
+    }
+
+    @Override
+    public List<PurchasedOrderResponse> listPurchasedOrders() {
+        log.debug("Fetching Kite order book for completed BUY orders");
+        try {
+            return kiteConnect.getOrders().stream()
+                    .filter(KiteOrderAdapter::isCompletedBuyOrder)
+                    .map(KiteOrderAdapter::toPurchasedOrderResponse)
+                    .sorted(Comparator.comparing(
+                            PurchasedOrderResponse::orderTimestamp,
+                            Comparator.nullsLast(Comparator.reverseOrder())))
+                    .toList();
+        } catch (Exception | KiteException ex) {
+            throw new MarketDataException(
+                    "Failed to list purchased orders: " + ex.getMessage(), ex);
         }
     }
 
@@ -171,5 +189,42 @@ public class KiteOrderAdapter implements OrderPort {
         }
 
         return params;
+    }
+
+    private static boolean isCompletedBuyOrder(Order order) {
+        return "BUY".equalsIgnoreCase(order.transactionType)
+                && "COMPLETE".equalsIgnoreCase(order.status)
+                && parseInt(order.filledQuantity) > 0;
+    }
+
+    private static PurchasedOrderResponse toPurchasedOrderResponse(Order order) {
+        return new PurchasedOrderResponse(
+                order.orderId,
+                order.tradingSymbol,
+                order.exchange,
+                order.product,
+                order.orderType,
+                order.transactionType,
+                parseInt(order.quantity),
+                parseInt(order.filledQuantity),
+                parseDouble(order.price),
+                parseDouble(order.averagePrice),
+                order.status,
+                order.orderTimestamp != null ? order.orderTimestamp.toInstant() : null
+        );
+    }
+
+    private static int parseInt(String value) {
+        if (value == null || value.isBlank()) {
+            return 0;
+        }
+        return Integer.parseInt(value);
+    }
+
+    private static double parseDouble(String value) {
+        if (value == null || value.isBlank()) {
+            return 0.0;
+        }
+        return Double.parseDouble(value);
     }
 }

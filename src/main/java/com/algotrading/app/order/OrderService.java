@@ -4,6 +4,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
+
 /**
  * Application service for order lifecycle management.
  *
@@ -34,6 +36,29 @@ public class OrderService {
         log.info("OrderService.placeOrder: {} {} qty={}",
                 request.transactionType(), request.tradingSymbol(), request.quantity());
         return orderPort.placeOrder(request);
+    }
+
+    /**
+     * Exit an existing long position by submitting an explicit SELL order.
+     *
+     * @param request exit order parameters without a caller-supplied side
+     * @return confirmation with the Kite-assigned {@code orderId}
+     */
+    public PlacedOrderResponse exitPosition(ExitOrderRequest request) {
+        OrderRequest sellOrder = request.toSellOrderRequest();
+        log.info("OrderService.exitPosition: SELL {} qty={}",
+                sellOrder.tradingSymbol(), sellOrder.quantity());
+        return orderPort.placeOrder(sellOrder);
+    }
+
+    /**
+     * List successfully completed BUY orders.
+     *
+     * @return completed purchase orders
+     */
+    public List<PurchasedOrderResponse> listPurchasedOrders() {
+        log.debug("OrderService.listPurchasedOrders");
+        return orderPort.listPurchasedOrders();
     }
 
     /**

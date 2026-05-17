@@ -1,9 +1,11 @@
 package com.algotrading.app.controller;
 
+import com.algotrading.app.order.ExitOrderRequest;
 import com.algotrading.app.order.OrderRequest;
 import com.algotrading.app.order.OrderService;
 import com.algotrading.app.order.OrderStatusResponse;
 import com.algotrading.app.order.PlacedOrderResponse;
+import com.algotrading.app.order.PurchasedOrderResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -23,6 +25,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+
 /**
  * Order management endpoints.
  *
@@ -33,6 +37,8 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <pre>
  * POST /api/v1/orders              → place a new order
+ * POST /api/v1/orders/exit         → place a SELL order to exit a position
+ * GET  /api/v1/orders/purchased    → list completed BUY orders
  * GET  /api/v1/orders/{orderId}/status → check order status
  * </pre>
  */
@@ -113,6 +119,93 @@ public class OrderController {
     public ResponseEntity<PlacedOrderResponse> placeOrder(
             @RequestBody @Valid OrderRequest request) {
         PlacedOrderResponse response = orderService.placeOrder(request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    /**
+     * List successfully completed BUY orders from Kite.
+     *
+     * <pre>GET /api/v1/orders/purchased</pre>
+     */
+    @GetMapping("/purchased")
+    @Operation(
+            summary = "List purchased orders",
+            description = "Returns orders from the Kite order book where transactionType is BUY, status is COMPLETE, and filledQuantity is greater than zero."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Purchased orders returned successfully",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = PurchasedOrderResponse.class))),
+            @ApiResponse(responseCode = "401", description = "No active Kite session",
+                    content = @Content),
+            @ApiResponse(responseCode = "502", description = "Kite order-book lookup failed",
+                    content = @Content),
+            @ApiResponse(responseCode = "500", description = "Unexpected error",
+                    content = @Content)
+    })
+    public ResponseEntity<List<PurchasedOrderResponse>> listPurchasedOrders() {
+        return ResponseEntity.ok(orderService.listPurchasedOrders());
+    }
+
+    /**
+     * Exit an existing position with a SELL order.
+     *
+     * <pre>
+     * POST /api/v1/orders/exit
+     * Content-Type: application/json
+     *
+     * {
+     *   "tradingSymbol": "INFY",
+     *   "exchange":      "NSE",
+     *   "quantity":      10,
+     *   "orderType":     "MARKET",
+     *   "product":       "CNC",
+     *   "price":         0
+     * }
+     * </pre>
+     */
+    @PostMapping({"/exit", "/sell"})
+    @Operation(
+            summary = "Exit a position with a SELL order",
+            description = """
+                    Places a SELL order through Kite using the supplied symbol, quantity, order type,
+                    and product. The request body intentionally omits transactionType because this
+                    endpoint always submits SELL.
+                    """
+    )
+    @io.swagger.v3.oas.annotations.parameters.RequestBody(
+            required = true,
+            description = "Exit details accepted by Kite. The service always submits transactionType SELL.",
+            content = @Content(mediaType = "application/json",
+                    schema = @Schema(implementation = ExitOrderRequest.class),
+                    examples = @ExampleObject(name = "Market exit", value = """
+                            {
+                              "tradingSymbol": "INFY",
+                              "exchange": "NSE",
+                              "quantity": 10,
+                              "orderType": "MARKET",
+                              "product": "CNC",
+                              "price": 0,
+                              "triggerPrice": 0
+                            }
+                            """))
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "Exit order placed successfully",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = PlacedOrderResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Invalid exit order request",
+                    content = @Content),
+            @ApiResponse(responseCode = "401", description = "No active Kite session or Kite rejected authentication",
+                    content = @Content),
+            @ApiResponse(responseCode = "502", description = "Kite order service failed",
+                    content = @Content),
+            @ApiResponse(responseCode = "500", description = "Unexpected error",
+                    content = @Content)
+    })
+    public ResponseEntity<PlacedOrderResponse> exitPosition(
+            @RequestBody @Valid ExitOrderRequest request) {
+        PlacedOrderResponse response = orderService.exitPosition(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
