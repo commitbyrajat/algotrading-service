@@ -20,6 +20,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
@@ -38,7 +39,7 @@ class InstrumentServiceTest {
         objectMapper = new ObjectMapper();
         service = new InstrumentService(instrumentPort, redis, objectMapper);
 
-        given(redis.opsForValue()).willReturn(valueOperations);
+        lenient().when(redis.opsForValue()).thenReturn(valueOperations);
     }
 
     @Test
@@ -78,20 +79,53 @@ class InstrumentServiceTest {
         verify(instrumentPort).fetchInstruments(Optional.empty());
     }
 
+    @Test
+    void listInstrumentsByTradingSymbols_filtersExchangeListIgnoringCaseAndBlanks() {
+        InstrumentResponse infy = sampleInstrument("INFY", "INFOSYS", "NSE");
+        InstrumentResponse tcs = sampleInstrument("TCS", "TATA CONSULTANCY SERVICES", "NSE");
+        InstrumentResponse reliance = sampleInstrument("RELIANCE", "RELIANCE INDUSTRIES", "NSE");
+        List<InstrumentResponse> fetched = List.of(infy, tcs, reliance);
+        given(valueOperations.get("kite:instruments:NSE")).willReturn(null);
+        given(instrumentPort.fetchInstruments(Optional.of("NSE"))).willReturn(fetched);
+
+        List<InstrumentResponse> result = service.listInstrumentsByTradingSymbols(
+                Optional.of("nse"),
+                List.of(" infy ", "TCS", "", "infy")
+        );
+
+        assertThat(result).containsExactly(infy, tcs);
+        verify(instrumentPort).fetchInstruments(Optional.of("NSE"));
+    }
+
+    @Test
+    void listInstrumentsByTradingSymbols_returnsEmptyListForBlankSymbolsWithoutCallingKite() {
+        List<InstrumentResponse> result = service.listInstrumentsByTradingSymbols(
+                Optional.empty(),
+                List.of(" ", "")
+        );
+
+        assertThat(result).isEmpty();
+        verify(instrumentPort, never()).fetchInstruments(Optional.empty());
+    }
+
     private InstrumentResponse sampleInstrument() {
+        return sampleInstrument("INFY", "INFOSYS", "NSE");
+    }
+
+    private InstrumentResponse sampleInstrument(String tradingSymbol, String name, String exchange) {
         return new InstrumentResponse(
                 408065,
                 1594,
-                "INFY",
-                "INFOSYS",
+                tradingSymbol,
+                name,
                 0.0,
                 LocalDate.of(2026, 6, 25),
                 null,
                 0.05,
                 1,
                 "EQ",
-                "NSE",
-                "NSE"
+                exchange,
+                exchange
         );
     }
 }

@@ -11,9 +11,11 @@ import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
 import java.time.Duration;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Application service for Kite instrument master retrieval.
@@ -50,6 +52,18 @@ public class InstrumentService {
                 return loadFromRedis(cacheKey).orElseGet(() -> fetchAndCache(normalizedExchange, cacheKey));
             }
         });
+    }
+
+    public List<InstrumentResponse> listInstrumentsByTradingSymbols(Optional<String> exchange,
+                                                                    List<String> tradingSymbols) {
+        Set<String> normalizedTradingSymbols = normalizeTradingSymbols(tradingSymbols);
+        if (normalizedTradingSymbols.isEmpty()) {
+            return List.of();
+        }
+
+        return listInstruments(exchange).stream()
+                .filter(instrument -> normalizedTradingSymbols.contains(normalizeTradingSymbol(instrument.tradingSymbol())))
+                .toList();
     }
 
     private List<InstrumentResponse> fetchAndCache(Optional<String> exchange, String cacheKey) {
@@ -96,6 +110,28 @@ public class InstrumentService {
                 .map(String::trim)
                 .filter(value -> !value.isBlank())
                 .map(value -> value.toUpperCase(Locale.ROOT));
+    }
+
+    private Set<String> normalizeTradingSymbols(List<String> tradingSymbols) {
+        Set<String> normalizedSymbols = new LinkedHashSet<>();
+        if (tradingSymbols == null) {
+            return normalizedSymbols;
+        }
+
+        for (String tradingSymbol : tradingSymbols) {
+            String normalizedSymbol = normalizeTradingSymbol(tradingSymbol);
+            if (!normalizedSymbol.isBlank()) {
+                normalizedSymbols.add(normalizedSymbol);
+            }
+        }
+        return normalizedSymbols;
+    }
+
+    private String normalizeTradingSymbol(String tradingSymbol) {
+        if (tradingSymbol == null) {
+            return "";
+        }
+        return tradingSymbol.trim().toUpperCase(Locale.ROOT);
     }
 
     private String cacheKey(Optional<String> exchange) {

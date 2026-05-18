@@ -23,8 +23,9 @@ import java.util.Optional;
  * Kite instrument master endpoints.
  *
  * <pre>
- * GET /api/v1/instruments              → all tradable instruments
- * GET /api/v1/instruments?exchange=NSE → instruments for one exchange
+ * GET /api/v1/instruments                                      → all tradable instruments
+ * GET /api/v1/instruments?exchange=NSE                         → instruments for one exchange
+ * GET /api/v1/instruments/by-symbols?tradingSymbols=INFY,TCS   → instruments for trading symbols
  * </pre>
  */
 @RestController
@@ -75,5 +76,44 @@ public class InstrumentController {
             )
             @RequestParam Optional<String> exchange) {
         return ResponseEntity.ok(instrumentService.listInstruments(exchange));
+    }
+
+    /**
+     * Retrieves instruments matching one or more trading symbols.
+     */
+    @GetMapping("/by-symbols")
+    @Operation(
+            summary = "List Kite instruments by trading symbols",
+            description = """
+                    Returns instrument-master rows whose tradingSymbol matches one of the requested
+                    symbols. The tradingSymbols parameter accepts comma-delimited values or repeated
+                    query parameters. Use the optional exchange parameter to narrow duplicate symbols
+                    across exchanges or segments.
+                    """
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Matching instruments returned successfully",
+                    content = @Content(mediaType = "application/json",
+                            array = @ArraySchema(schema = @Schema(implementation = InstrumentResponse.class)))),
+            @ApiResponse(responseCode = "401", description = "No active Kite session",
+                    content = @Content),
+            @ApiResponse(responseCode = "502", description = "Kite instrument service failed",
+                    content = @Content),
+            @ApiResponse(responseCode = "500", description = "Unexpected error",
+                    content = @Content)
+    })
+    public ResponseEntity<List<InstrumentResponse>> listInstrumentsByTradingSymbols(
+            @Parameter(
+                    description = "Trading symbols to look up. Repeat this parameter or pass comma-delimited values.",
+                    example = "INFY,TCS"
+            )
+            @RequestParam List<String> tradingSymbols,
+            @Parameter(
+                    description = "Optional Kite exchange filter. Omit it to search all instruments.",
+                    example = "NSE",
+                    schema = @Schema(allowableValues = {"NSE", "BSE", "NFO", "BFO", "CDS", "MCX"})
+            )
+            @RequestParam Optional<String> exchange) {
+        return ResponseEntity.ok(instrumentService.listInstrumentsByTradingSymbols(exchange, tradingSymbols));
     }
 }

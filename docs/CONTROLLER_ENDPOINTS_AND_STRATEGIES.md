@@ -218,6 +218,62 @@ What happens internally:
 - `KiteInstrumentAdapter` calls `KiteConnect#getInstruments()` or `KiteConnect#getInstruments(exchange)`.
 - Zerodha SDK types are mapped to `InstrumentResponse` before returning from the controller.
 
+### List Instruments By Trading Symbols
+
+Method:
+
+```http
+GET /api/v1/instruments/by-symbols?tradingSymbols=INFY,TCS
+```
+
+Controller method:
+
+```java
+listInstrumentsByTradingSymbols(exchange, tradingSymbols)
+```
+
+Purpose:
+
+Returns instrument-master rows matching one or more trading symbols. The lookup is case-insensitive and can be restricted to one exchange.
+
+Input:
+
+Query parameters:
+
+| Name | Required | Example | Purpose |
+|---|---|---|---|
+| `tradingSymbols` | Yes | `INFY,TCS` | Trading symbols to find. Can be comma-delimited or repeated. |
+| `exchange` | No | `NSE` | Restricts the lookup to one exchange |
+
+Output:
+
+HTTP `200 OK`
+
+```json
+[
+  {
+    "instrumentToken": 408065,
+    "exchangeToken": 1594,
+    "tradingSymbol": "INFY",
+    "name": "INFOSYS",
+    "lastPrice": 0.0,
+    "expiry": null,
+    "strike": null,
+    "tickSize": 0.05,
+    "lotSize": 1,
+    "instrumentType": "EQ",
+    "segment": "NSE",
+    "exchange": "NSE"
+  }
+]
+```
+
+What happens internally:
+
+- Calls `InstrumentService.listInstrumentsByTradingSymbols(exchange, tradingSymbols)`.
+- The service loads the cached instrument list for the requested exchange, or fetches it through `InstrumentPort` on cache miss.
+- The service filters rows by normalized `tradingSymbol` and returns all matches.
+
 ## Strategy Controller
 
 Class: `StrategyController`  
