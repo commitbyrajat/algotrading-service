@@ -1,17 +1,11 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
-                             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+<?xml version="1.0" encoding="UTF-8"?><project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0                              https://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
-
   <parent>
     <groupId>org.springframework.boot</groupId>
     <artifactId>spring-boot-starter-parent</artifactId>
     <version>4.0.6</version>
     <relativePath/>
   </parent>
-
   <groupId>com.algotrading.app</groupId>
   <artifactId>algotrading-service</artifactId>
   <version>1.0.0-SNAPSHOT</version>
@@ -20,8 +14,7 @@
     Production-grade algo trading service –
     ta4j 0.22.6 + Zerodha Kite 4.0.0 + Spring Boot 4.0.6 + Redis
   </description>
-  <packaging>jar</packaging>
-
+  <packaging>pom</packaging>
   <properties>
     <java.version>21</java.version>
     <maven.compiler.release>21</maven.compiler.release>
@@ -29,7 +22,6 @@
     <kiteconnect.version>4.0.0</kiteconnect.version>
     <springdoc.version>3.0.3</springdoc.version>
   </properties>
-
   <dependencies>
     <!-- ==================== Spring Boot Web ==================== -->
     <dependency>
@@ -45,27 +37,23 @@
       <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
       <version>${springdoc.version}</version>
     </dependency>
-
     <!-- ==================== Spring Data Redis ==================== -->
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-data-redis</artifactId>
     </dependency>
-
     <!-- ==================== ta4j Technical Analysis ==================== -->
     <dependency>
       <groupId>org.ta4j</groupId>
       <artifactId>ta4j-core</artifactId>
       <version>${ta4j.version}</version>
     </dependency>
-
     <!-- ==================== Zerodha Kite Connect ==================== -->
     <dependency>
       <groupId>com.zerodhatech.kiteconnect</groupId>
       <artifactId>kiteconnect</artifactId>
       <version>${kiteconnect.version}</version>
     </dependency>
-
     <!-- ==================== Test ==================== -->
     <dependency>
       <groupId>org.springframework.boot</groupId>
@@ -73,7 +61,6 @@
       <scope>test</scope>
     </dependency>
   </dependencies>
-
   <build>
     <plugins>
       <plugin>
@@ -85,7 +72,9 @@
         <artifactId>maven-compiler-plugin</artifactId>
         <configuration>
           <release>21</release>
-          <compilerArgs><arg>-parameters</arg></compilerArgs>
+          <compilerArgs>
+            <arg>-parameters</arg>
+          </compilerArgs>
         </configuration>
       </plugin>
       <plugin>
@@ -100,4 +89,7 @@
       </plugin>
     </plugins>
   </build>
+  <modules>
+    <module>service</module>
+  </modules>
 </project>
