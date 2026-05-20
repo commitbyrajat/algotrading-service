@@ -72,5 +72,49 @@ services:
       MCP_TOOL_PREFIX: algotrading_
     restart: unless-stopped
 
+  agent-build:
+    image: ghcr.io/astral-sh/uv:python3.12-bookworm-slim
+    container_name: algotrading-agent-build
+    working_dir: /workspace/agent
+    volumes:
+      - ./agent:/workspace/agent
+      - uv_cache:/root/.cache/uv
+    command: uv sync --locked
+
+  agent:
+    image: ghcr.io/astral-sh/uv:python3.12-bookworm-slim
+    container_name: algotrading-agent
+    working_dir: /workspace/agent
+    ports:
+      - "8090:8090"
+    depends_on:
+      openapi-mcp:
+        condition: service_started
+      agent-build:
+        condition: service_completed_successfully
+    volumes:
+      - ./agent:/workspace/agent
+      - uv_cache:/root/.cache/uv
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      AGENT_MODEL: ${AGENT_MODEL:-openai-chat:gpt-4o-mini}
+      MCP_ENDPOINT_URL: http://openapi-mcp:3100/mcp
+      AGENT_CRON_MINUTES: ${AGENT_CRON_MINUTES:-*/5}
+      AGENT_TIMEZONE: ${AGENT_TIMEZONE:-Asia/Kolkata}
+      AGENT_ALLOW_TRADING: ${AGENT_ALLOW_TRADING:-false}
+      AGENT_HTTP_HOST: 0.0.0.0
+      AGENT_HTTP_PORT: 8090
+      AGENT_LOG_LEVEL: ${AGENT_LOG_LEVEL:-INFO}
+      AGENT_CANDLE_LOOKBACK_DAYS: ${AGENT_CANDLE_LOOKBACK_DAYS:-120}
+      AGENT_CANDLE_INTERVAL: ${AGENT_CANDLE_INTERVAL:-day}
+      AGENT_ORDER_QUANTITY: ${AGENT_ORDER_QUANTITY:-1}
+      AGENT_ORDER_PRODUCT: ${AGENT_ORDER_PRODUCT:-CNC}
+      AGENT_ORDER_TYPE: ${AGENT_ORDER_TYPE:-MARKET}
+      AGENT_MAX_ORDERS_PER_CYCLE: ${AGENT_MAX_ORDERS_PER_CYCLE:-2}
+      AGENT_TODAY: ${AGENT_TODAY:-}
+    command: uv run --locked python main.py
+    restart: unless-stopped
+
 volumes:
   redis_data:
+  uv_cache:
