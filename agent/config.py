@@ -6,6 +6,9 @@ from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 
+INTRADAY_MAX_LOOKBACK_DAYS = 1
+
+
 def _bool_env(name: str, default: bool = False) -> bool:
     value = os.getenv(name)
     if value is None:
@@ -20,10 +23,14 @@ class AgentConfig:
     cron_minutes: str
     http_host: str
     http_port: int
+    enable_order_tools: bool
     allow_trading: bool
     prompt: str
     instrument_universe: str
+    instrument_exchange: str
+    strategy_names: str
     candle_lookback_days: int
+    intraday_lookback_days: int
     candle_interval: str
     order_quantity: int
     order_product: str
@@ -40,10 +47,14 @@ class AgentConfig:
             cron_minutes=os.getenv("AGENT_CRON_MINUTES", "*/5"),
             http_host=os.getenv("AGENT_HTTP_HOST", "0.0.0.0"),
             http_port=int(os.getenv("AGENT_HTTP_PORT", "8090")),
+            enable_order_tools=_bool_env("AGENT_ENABLE_ORDER_TOOLS"),
             allow_trading=_bool_env("AGENT_ALLOW_TRADING"),
             prompt=os.getenv("AGENT_RUN_PROMPT", default_run_prompt()),
             instrument_universe=os.getenv("AGENT_INSTRUMENT_UNIVERSE", default_instrument_universe()),
+            instrument_exchange=os.getenv("AGENT_INSTRUMENT_EXCHANGE", "NSE").strip().upper(),
+            strategy_names=os.getenv("AGENT_STRATEGY_NAMES", default_strategy_names()),
             candle_lookback_days=int(os.getenv("AGENT_CANDLE_LOOKBACK_DAYS", "120")),
+            intraday_lookback_days=int(os.getenv("AGENT_INTRADAY_LOOKBACK_DAYS", "1")),
             candle_interval=os.getenv("AGENT_CANDLE_INTERVAL", "day"),
             order_quantity=int(os.getenv("AGENT_ORDER_QUANTITY", "1")),
             order_product=os.getenv("AGENT_ORDER_PRODUCT", "CNC"),
@@ -55,23 +66,74 @@ class AgentConfig:
 
     def candle_date_range(self) -> tuple[date, date]:
         today = self.today_override or current_date(self.timezone)
-        return today - timedelta(days=self.candle_lookback_days), today
+        if is_intraday_interval(self.resolved_candle_interval()):
+            requested_days = max(self.intraday_lookback_days, 1)
+            lookback_days = min(requested_days, INTRADAY_MAX_LOOKBACK_DAYS)
+        else:
+            lookback_days = max(self.candle_lookback_days, 1)
+        return today - timedelta(days=lookback_days), today
+
+    def resolved_candle_interval(self) -> str:
+        explicit_interval = os.getenv("AGENT_CANDLE_INTERVAL")
+        if explicit_interval and explicit_interval.strip():
+            return explicit_interval.strip()
+        return candle_interval_from_cron_minutes(self.cron_minutes)
 
 
 def default_run_prompt() -> str:
     return (
-        "Run one scheduled algo-trading supervision cycle. Use the available MCP tools "
-        "to inspect current service state, auth/session status, and the configured penny-stock "
-        "trading-symbol universe. Evaluate the service strategies only against those symbols "
-        "that resolve to Kite instruments. If trading is enabled, place orders for actionable "
-        "BUY/SELL recommendations using the configured execution policy. Summarize market or "
-        "service conditions, identify actionable risks, and report any submitted orders. Be "
-        "concise and include the specific API/tool evidence used."
+        "Run one scheduled algo-trading supervision cycle. Follow the required workflow exactly: "
+        "check service/auth status, lookup configured instruments on the configured exchange only, "
+        "list registered strategies, execute only configured registered strategies for resolved instruments, inspect existing purchased/completed orders only "
+        "when order tools are enabled, then decide BUY, SELL, or HOLD for each actionable result. If trading is enabled, place orders "
+        "only after that decision step and according to the configured execution policy. Summarize "
+        "market or service conditions, decisions, and submitted or skipped orders with specific API/tool evidence."
     )
 
 
 def current_date(timezone: str) -> date:
     return date.today() if not timezone else datetime.now(ZoneInfo(timezone)).date()
+
+
+def default_strategy_names() -> str:
+    return "\n".join(
+        [
+            "GAINZ_ALPHA_V2",
+            "SMA_CROSSOVER",
+            "RSI_MEAN_REVERSION",
+        ]
+    )
+
+
+def candle_interval_from_cron_minutes(cron_minutes: str) -> str:
+    cron_minutes = cron_minutes.strip()
+    minute_value = None
+
+    if cron_minutes.startswith("*/"):
+        minute_value = cron_minutes.removeprefix("*/")
+    elif cron_minutes.isdigit():
+        minute_value = cron_minutes
+
+    if minute_value is None:
+        return "day"
+
+    try:
+        minutes = int(minute_value)
+    except ValueError:
+        return "day"
+
+    if minutes <= 1:
+        return "minute"
+    if minutes in {3, 5, 10, 15, 30, 60}:
+        return f"{minutes}minute"
+    if minutes < 60:
+        return "5minute"
+    return "60minute"
+
+
+def is_intraday_interval(interval: str) -> bool:
+    normalized = interval.strip().lower()
+    return normalized == "minute" or normalized.endswith("minute")
 
 
 def _date_env(name: str) -> date | None:
@@ -84,30 +146,29 @@ def _date_env(name: str) -> date | None:
 def default_instrument_universe() -> str:
     return "\n".join(
         [
-            "532015",
-            "517393",
-            "SHEKHAWATI",
-            "539288",
-            "RMDRIP",
-            "539594",
-            "530805",
-            "MEDISTEP",
-            "539607",
-            "GATECHDVR",
-            "NILASPACES",
-            "538834",
-            "ENSER",
-            "534535",
-            "521228",
-            "DRCSYSTEMS",
-            "AHCL",
-            "531395",
-            "513337",
-            "IDENTICAL",
-            "NILAINFRA",
-            "BTML",
-            "EASEMYTRIP",
-            "531671",
-            "543285",
+          "WAAREEINDO",
+          "TIPSMUSIC",
+          "NESTLEIND",
+          "MCX",
+          "HINDZINC",
+          "WEBELSOLAR",
+          "SWARAJENG",
+          "BSE",
+          "ANANDRATHI",
+          "IEX",
+          "IRCTC",
+          "GRSE",
+          "DIXON",
+          "FRONTSP",
+          "VMARCIND",
+          "KPENERGY",
+          "DSSL",
+          "SOLARINDS",
+          "GOKULAGRO",
+          "THYROCARE",
+          "JYOTIRES",
+          "BEL",
+          "LLOYDSME",
+          "MAZDOCK"
         ]
     )

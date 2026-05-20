@@ -76,12 +76,28 @@ public class KiteMarketDataAdapter implements MarketDataPort {
 
         } catch (MarketDataException ex) {
             throw ex;
-        } catch (Exception ex) {
+        } catch (KiteException ex) {
+            log.error("Kite historical data lookup failed token={} from={} to={} interval={} error='{}'",
+                    request.instrumentToken(),
+                    request.from(),
+                    request.to(),
+                    request.interval(),
+                    ex.getMessage(),
+                    ex);
             throw new MarketDataException(
                     "Failed to fetch historical data from Kite for token: "
                             + request.instrumentToken(), ex);
-        } catch (KiteException e) {
-            throw new RuntimeException(e);
+        } catch (Exception ex) {
+            log.error("Historical data lookup failed token={} from={} to={} interval={} error='{}'",
+                    request.instrumentToken(),
+                    request.from(),
+                    request.to(),
+                    request.interval(),
+                    ex.getMessage(),
+                    ex);
+            throw new MarketDataException(
+                    "Failed to fetch historical data from Kite for token: "
+                            + request.instrumentToken(), ex);
         }
     }
 

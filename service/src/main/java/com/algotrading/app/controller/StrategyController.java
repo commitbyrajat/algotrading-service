@@ -11,6 +11,8 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -45,6 +47,8 @@ import java.util.List;
         description = "Strategy discovery and on-demand technical strategy evaluation using Kite historical candle data."
 )
 public class StrategyController {
+
+    private static final Logger log = LoggerFactory.getLogger(StrategyController.class);
 
     private final TradingStrategyService tradingStrategyService;
 
@@ -141,7 +145,19 @@ public class StrategyController {
             @RequestParam(defaultValue = "day") String interval) {
 
         HistoricalDataRequest request = new HistoricalDataRequest(token, from, to, interval);
-        StrategyDecision decision = tradingStrategyService.evaluate(name, request);
-        return ResponseEntity.ok(decision);
+        try {
+            StrategyDecision decision = tradingStrategyService.evaluate(name, request);
+            return ResponseEntity.ok(decision);
+        } catch (RuntimeException ex) {
+            log.error("Strategy evaluation failed strategy='{}' token='{}' from={} to={} interval={} error='{}'",
+                    name,
+                    request.instrumentToken(),
+                    request.from(),
+                    request.to(),
+                    request.interval(),
+                    ex.getMessage(),
+                    ex);
+            throw ex;
+        }
     }
 }

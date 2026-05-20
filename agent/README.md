@@ -34,12 +34,16 @@ export AGENT_MODEL="openai-chat:gpt-4o-mini"
 export MCP_ENDPOINT_URL="http://localhost:3100/mcp"
 export AGENT_CRON_MINUTES="*/5"
 export AGENT_TIMEZONE="Asia/Kolkata"
+export AGENT_ENABLE_ORDER_TOOLS="false"
 export AGENT_ALLOW_TRADING="false"
+export AGENT_INSTRUMENT_EXCHANGE="NSE"
+export AGENT_STRATEGY_NAMES="GAINZ_ALPHA_V2"
 export AGENT_HTTP_HOST="0.0.0.0"
 export AGENT_HTTP_PORT="8090"
 export AGENT_LOG_LEVEL="INFO"
 export AGENT_CANDLE_LOOKBACK_DAYS="120"
-export AGENT_CANDLE_INTERVAL="day"
+export AGENT_INTRADAY_LOOKBACK_DAYS="1"
+export AGENT_CANDLE_INTERVAL=""
 export AGENT_ORDER_QUANTITY="1"
 export AGENT_ORDER_PRODUCT="CNC"
 export AGENT_ORDER_TYPE="MARKET"
@@ -52,8 +56,10 @@ EASEMYTRIP"
 
 By default, the agent uses trading symbols derived from the first page of the
 Screener "Best Penny Stocks" screen. The Screener display names are not passed
-to the broker instrument API because `/api/v1/instruments/by-symbols` matches
-exact Kite `tradingSymbol` values.
+to the broker instrument API. The agent first uses the mixed instrument lookup
+API, which accepts either Kite `tradingSymbol` values or `exchangeToken` values
+in the same identifier list. By default, the agent passes `exchange=NSE` for
+instrument lookup and does not retry unresolved symbols on BSE.
 
 ### Docker Compose
 
@@ -136,10 +142,22 @@ If a scheduled cycle is already running, manual trigger returns HTTP `409`.
 
 ### Trading Execution
 
-Order placement is disabled by default. To allow the agent to place orders from
-its strategy recommendations:
+Order tools are disabled by default. With `AGENT_ENABLE_ORDER_TOOLS=false`, the
+agent must not call any MCP tools related to orders, including purchased-order
+lookup, order status, order placement, exit, or sell tools.
+
+To allow read-only order inspection without placement:
 
 ```bash
+export AGENT_ENABLE_ORDER_TOOLS=true
+export AGENT_ALLOW_TRADING=false
+docker compose up -d agent
+```
+
+To allow the agent to place orders from its strategy recommendations:
+
+```bash
+export AGENT_ENABLE_ORDER_TOOLS=true
 export AGENT_ALLOW_TRADING=true
 export AGENT_ORDER_QUANTITY=1
 export AGENT_ORDER_PRODUCT=CNC
@@ -150,9 +168,15 @@ docker compose up -d agent
 
 Execution rules:
 
-- BUY signals use the place-order MCP tool with `transactionType=BUY`.
-- SELL signals use the exit/sell MCP tool only after the agent confirms an
-  existing completed BUY/position for that symbol.
+- The agent must first lookup instruments by trading symbol or exchange token.
+- The agent executes strategies only for resolved instruments.
+- The agent may inspect existing purchased/completed orders before deciding
+  whether to BUY, SELL, or HOLD only when `AGENT_ENABLE_ORDER_TOOLS=true`.
+- BUY decisions use the place-order MCP tool with `transactionType=BUY`, only
+  when `AGENT_ENABLE_ORDER_TOOLS=true`, `AGENT_ALLOW_TRADING=true`, and no duplicate exposure exists.
+- SELL decisions use the exit/sell MCP tool only after the agent confirms an
+  existing completed BUY/position for that symbol, and only when both flags are enabled.
+- HOLD decisions never place orders.
 - MARKET orders use `price=0` and `triggerPrice=0`.
 - The agent checks order status when an order id is returned.
 - If `AGENT_ALLOW_TRADING=false`, the agent reports intended actions without
@@ -183,18 +207,30 @@ reduce schedule frequency, switch `AGENT_MODEL`, or fix the OpenAI account quota
 
 ### Strategy Date Range
 
-The agent injects an explicit candle range into every run prompt. By default it
-uses the last 120 calendar days ending on today's date in `AGENT_TIMEZONE`.
+The agent injects an explicit candle range and interval into every run prompt.
+It derives the Kite candle interval from `AGENT_CRON_MINUTES` unless
+`AGENT_CANDLE_INTERVAL` is set explicitly.
 
-For example, on `2026-05-20` with the default settings, strategy calls must use:
+For example, with `AGENT_CRON_MINUTES=*/5`, strategy calls must use:
 
 ```text
-from=2026-01-20
-to=2026-05-20
-interval=day
+interval=5minute
 ```
+
+Minute-based intervals use `AGENT_INTRADAY_LOOKBACK_DAYS`, capped to `1`, so
+the date range gap stays under 2 days for Kite historical-data limits. On
+`2026-05-20` with `AGENT_CRON_MINUTES=*/5`, strategy calls must use:
+
+```text
+from=2026-05-19
+to=2026-05-20
+interval=5minute
+```
+
+Day intervals use `AGENT_CANDLE_LOOKBACK_DAYS`, which defaults to `120`.
 
 This prevents the model from copying old OpenAPI example dates such as
 `2024-06-06`.
 
-For deterministic testing, set `AGENT_TODAY=YYYY-MM-DD`.
+Set `AGENT_CANDLE_INTERVAL` only when you need to override the scheduler-derived
+interval explicitly. For deterministic testing, set `AGENT_TODAY=YYYY-MM-DD`.

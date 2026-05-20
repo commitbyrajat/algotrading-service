@@ -32,7 +32,7 @@ class TradingMcpAgent:
             self.config.mcp_url,
             from_date.isoformat(),
             to_date.isoformat(),
-            self.config.candle_interval,
+            self.config.resolved_candle_interval(),
             len(prompt_text),
         )
         logger.info("%sprompt_preview=%s", log_prefix, self._preview(prompt_text))
