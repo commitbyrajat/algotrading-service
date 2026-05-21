@@ -148,6 +148,27 @@ public class OrderController {
     }
 
     /**
+     * Clear cached purchased orders.
+     *
+     * <pre>POST /api/v1/orders/purchased/cache/clear</pre>
+     */
+    @PostMapping("/purchased/cache/clear")
+    @Operation(
+            summary = "Clear purchased-order cache",
+            description = "Clears the Redis cache used for completed BUY orders grouped by tradingSymbol."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Purchased-order cache cleared",
+                    content = @Content),
+            @ApiResponse(responseCode = "500", description = "Unexpected error",
+                    content = @Content)
+    })
+    public ResponseEntity<Void> clearPurchasedOrdersCache() {
+        orderService.clearPurchasedOrdersCache();
+        return ResponseEntity.noContent().build();
+    }
+
+    /**
      * Exit an existing position with a SELL order.
      *
      * <pre>
