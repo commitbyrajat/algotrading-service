@@ -49,6 +49,7 @@ import java.util.List;
 public class StrategyController {
 
     private static final Logger log = LoggerFactory.getLogger(StrategyController.class);
+    private static final String ALL_STRATEGIES = "ALL";
 
     private final TradingStrategyService tradingStrategyService;
 
@@ -91,11 +92,12 @@ public class StrategyController {
             summary = "Evaluate a strategy",
             description = """
                     Evaluates the named strategy over Kite historical candles for the supplied instrument token,
-                    date range, and interval. The response is a decision only; this endpoint never places orders.
+                    date range, and interval. Use ALL as the strategy name to evaluate every registered strategy
+                    using one historical candle lookup. This endpoint never places orders.
                     """
     )
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Strategy evaluated successfully",
+            @ApiResponse(responseCode = "200", description = "Strategy evaluated successfully. Returns one decision for a named strategy or a list of decisions for ALL.",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = StrategyDecision.class))),
             @ApiResponse(responseCode = "400", description = "Invalid token, date range, or interval",
@@ -109,11 +111,11 @@ public class StrategyController {
             @ApiResponse(responseCode = "500", description = "Unexpected error",
                     content = @Content)
     })
-    public ResponseEntity<StrategyDecision> evaluate(
+    public ResponseEntity<?> evaluate(
             @Parameter(
-                    description = "Registered strategy name returned by GET /api/v1/strategies.",
+                    description = "Registered strategy name returned by GET /api/v1/strategies, or ALL to evaluate every registered strategy.",
                     required = true,
-                    example = "SMA_CROSSOVER"
+                    example = "ALL"
             )
             @PathVariable String name,
             @Parameter(
@@ -146,7 +148,25 @@ public class StrategyController {
 
         HistoricalDataRequest request = new HistoricalDataRequest(token, from, to, interval);
         try {
+            log.info("Strategy evaluation request received strategy='{}' token='{}' from={} to={} interval={}",
+                    name,
+                    request.instrumentToken(),
+                    request.from(),
+                    request.to(),
+                    request.interval());
+
+            if (ALL_STRATEGIES.equalsIgnoreCase(name)) {
+                List<StrategyDecision> decisions = tradingStrategyService.evaluateAll(request);
+                log.info("Strategy evaluation request completed strategy='{}' decisions={}",
+                        name,
+                        decisions.size());
+                return ResponseEntity.ok(decisions);
+            }
+
             StrategyDecision decision = tradingStrategyService.evaluate(name, request);
+            log.info("Strategy evaluation request completed strategy='{}' signal={}",
+                    name,
+                    decision.signal());
             return ResponseEntity.ok(decision);
         } catch (RuntimeException ex) {
             log.error("Strategy evaluation failed strategy='{}' token='{}' from={} to={} interval={} error='{}'",

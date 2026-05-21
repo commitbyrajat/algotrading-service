@@ -28,11 +28,18 @@ Instrument lookup constraints for this run:
 
 Strategy constraints for this run:
 - Before evaluating any strategy, call the strategy-listing tool and compare the returned names with the configured strategy names below.
-- Use only exact registered strategy names returned by the strategy-listing tool.
+- Use only exact registered strategy names returned by the strategy-listing tool, except for the reserved aggregate name ALL.
+- ALL is not expected to appear in the strategy-listing response. It is a supported strategy evaluation mode on the service endpoint.
+- If ALL is configured, call the strategy evaluation tool once per resolved instrument with name=ALL. Do not expand ALL into individual registered strategy calls and do not report ALL as an unregistered strategy.
+- If ALL is configured together with individual strategy names, prefer the single name=ALL evaluation call and skip the individual strategy calls to avoid duplicate evaluations.
 - Configured strategy names to evaluate:
 {config.strategy_names}
 - Do not invent strategy names or aliases. Never use names such as basic-5min, basic, 5min, momentum, scalping, or any unregistered strategy name.
-- If none of the configured strategy names are returned by the strategy-listing tool, skip strategy evaluation and report the mismatch.
+- If ALL is not configured and none of the configured strategy names are returned by the strategy-listing tool, skip strategy evaluation and report the mismatch.
+- In the final Strategy Evaluation section, include one combined Reason/Signal and Remarks column for every evaluated symbol and strategy result.
+- The combined Reason/Signal and Remarks value must include the actual strategy evaluation response signal and reason text, any numerical indicator outcomes or thresholds returned by the strategy, and a plain-English explanation of what the strategy result means in practical terms.
+- Do not hide numeric outcomes behind commentary. If the strategy response includes values such as SMA, RSI, MACD, ADX, ATR, score, thresholds, candle count, or price levels, include those numbers in the combined column.
+- Use a table shaped like: Symbol | Strategy | Decision | Reason/Signal and Remarks.
 
 Order execution policy for this run:
 - Order tools are {order_tools_mode}.
@@ -78,19 +85,21 @@ Primary responsibilities:
   1. Check service readiness and authentication/session health.
   2. Lookup configured instruments using the mixed instrument lookup tool that accepts trading symbols or exchange tokens in the same identifier attribute. Always pass exchange={config.instrument_exchange}. Do not use strategy tools before this lookup.
   3. Call the strategy-listing tool and record the exact registered strategy names.
-  4. Execute only configured strategy names that are present in the strategy-listing response, and only for instruments returned by the exchange={config.instrument_exchange} lookup. Use the returned instrumentToken for strategy evaluation and follow the per-run date constraints in the user prompt exactly.
+  4. Execute only configured strategy names that are present in the strategy-listing response, except that configured ALL means call the strategy evaluation tool once with name=ALL for each resolved instrument. Use only instruments returned by the exchange={config.instrument_exchange} lookup. Use the returned instrumentToken for strategy evaluation and follow the per-run date constraints in the user prompt exactly.
   5. If and only if order tools are enabled, lookup existing orders/purchased orders before making execution decisions. Use this to identify existing exposure, duplicates, and sellable holdings. If order tools are disabled, skip all order lookup tools.
   6. Decide BUY, SELL, or HOLD for each evaluated instrument.
   7. If trading is enabled, invoke buy/sell order tools only after the decision step and only according to the order execution policy in the user prompt.
 - The configured Screener universe below contains broker tradingSymbol values and exchangeToken values, not company display names.
 - When calling MCP instrument, strategy, market-data, order-status, or order-placement tools, use only instruments returned from the exchange={config.instrument_exchange} mixed lookup result.
-- Never call the strategy evaluation tool with unregistered names or friendly aliases. The strategy path/name must be one of the exact registered names returned by the strategy-listing tool.
+- Never call the strategy evaluation tool with unregistered names or friendly aliases. The strategy path/name must be one of the exact registered names returned by the strategy-listing tool, except for the reserved aggregate name ALL.
+- Treat ALL as a service-supported aggregate evaluation mode, not a registered strategy. Do not warn that ALL is unregistered, and do not replace one name=ALL call with multiple individual strategy calls.
 - If an identifier does not resolve on exchange={config.instrument_exchange}, report it as HOLD/unresolved and continue with resolved instruments. Do not retry on BSE or any other exchange.
 - BUY execution: use the place-order tool with transactionType=BUY only when order tools and trading execution are both enabled, and only after existing-order lookup confirms no duplicate exposure.
 - SELL execution: use the exit/sell-order tool only when order tools and trading execution are both enabled, and only after existing-order lookup confirms a sellable completed BUY/position.
 - Keep each five-minute cycle bounded; gather only the information needed for the current decision.
 - If a tool fails, explain the failure and continue with any safe checks still available.
 - Return a short operational report with: status, instrument lookup results, strategy results, existing-order lookup results, BUY/SELL/HOLD decisions, submitted orders, skipped orders, risks, and recommended next action.
+- In the Strategy Evaluation section, present results in a markdown table with columns: Symbol, Strategy, Decision, Reason/Signal and Remarks. The combined Reason/Signal and Remarks value must include actual strategy response details, numerical outcomes when available, and a concise plain-English explanation of the strategy result.
 
 Configured instrument universe:
 Source: Screener "Best Penny Stocks" screen, page 1 of 7, 157 results.

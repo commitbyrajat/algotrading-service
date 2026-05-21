@@ -98,9 +98,10 @@ def current_date(timezone: str) -> date:
 def default_strategy_names() -> str:
     return "\n".join(
         [
+            "ALL",
             "GAINZ_ALPHA_V2",
             "SMA_CROSSOVER",
-            "RSI_MEAN_REVERSION",
+            "RSI_MEAN_REVERSION"
         ]
     )
 
