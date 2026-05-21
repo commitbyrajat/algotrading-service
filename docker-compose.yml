@@ -100,6 +100,7 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       AGENT_MODEL: ${AGENT_MODEL:-openai-chat:gpt-4o-mini}
       MCP_ENDPOINT_URL: http://openapi-mcp:3100/mcp
+      AGENT_APP_BASE_URL: ${AGENT_APP_BASE_URL:-http://app:8080}
       AGENT_CRON_MINUTES: ${AGENT_CRON_MINUTES:-*/5}
       AGENT_TIMEZONE: ${AGENT_TIMEZONE:-Asia/Kolkata}
       AGENT_ENABLE_ORDER_TOOLS: ${AGENT_ENABLE_ORDER_TOOLS:-false}

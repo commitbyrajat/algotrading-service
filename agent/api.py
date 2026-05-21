@@ -37,6 +37,7 @@ def create_app(agent_scheduler: AgentScheduler) -> FastAPI:
             "status": "running",
             "model": agent_scheduler.config.model,
             "mcp_url": agent_scheduler.config.mcp_url,
+            "app_base_url": agent_scheduler.config.app_base_url,
             "cron_minutes": agent_scheduler.config.cron_minutes,
             "trading_enabled": agent_scheduler.config.allow_trading,
             "order_placement_mode": agent_scheduler.config.order_placement_mode,

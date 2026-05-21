@@ -32,6 +32,7 @@ Optional environment:
 ```bash
 export AGENT_MODEL="openai-chat:gpt-4o-mini"
 export MCP_ENDPOINT_URL="http://localhost:3100/mcp"
+export AGENT_APP_BASE_URL="http://localhost:8080"
 export AGENT_CRON_MINUTES="*/5"
 export AGENT_TIMEZONE="Asia/Kolkata"
 export AGENT_ENABLE_ORDER_TOOLS="false"
