@@ -26,6 +26,7 @@ import java.util.Optional;
  * GET /api/v1/instruments                                      → all tradable instruments
  * GET /api/v1/instruments?exchange=NSE                         → instruments for one exchange
  * GET /api/v1/instruments/by-symbols?tradingSymbols=INFY,TCS   → instruments for trading symbols
+ * GET /api/v1/instruments/lookup?identifiers=INFY,1594         → instruments by trading symbol or exchange token
  * </pre>
  */
 @RestController
@@ -95,6 +96,8 @@ public class InstrumentController {
             @ApiResponse(responseCode = "200", description = "Matching instruments returned successfully",
                     content = @Content(mediaType = "application/json",
                             array = @ArraySchema(schema = @Schema(implementation = InstrumentResponse.class)))),
+            @ApiResponse(responseCode = "404", description = "No matching non-expired instruments found",
+                    content = @Content),
             @ApiResponse(responseCode = "401", description = "No active Kite session",
                     content = @Content),
             @ApiResponse(responseCode = "502", description = "Kite instrument service failed",
@@ -115,5 +118,48 @@ public class InstrumentController {
             )
             @RequestParam Optional<String> exchange) {
         return ResponseEntity.ok(instrumentService.listInstrumentsByTradingSymbols(exchange, tradingSymbols));
+    }
+
+    /**
+     * Retrieves instruments matching trading symbols or exchange tokens.
+     */
+    @GetMapping("/lookup")
+    @Operation(
+            summary = "Lookup Kite instruments by trading symbol or exchange token",
+            description = """
+                    Returns instrument-master rows whose tradingSymbol or exchangeToken matches one of the
+                    requested identifiers. The identifiers parameter accepts comma-delimited values or repeated
+                    query parameters. Each identifier is checked against the trading-symbol cache first, then the
+                    exchange-token cache. Use the optional exchange parameter to narrow duplicate symbols or tokens
+                    across exchanges or segments. Instruments whose expiry is null are excluded from lookup caches
+                    and treated as not found.
+                    """
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Matching instruments returned successfully",
+                    content = @Content(mediaType = "application/json",
+                            array = @ArraySchema(schema = @Schema(implementation = InstrumentResponse.class)))),
+            @ApiResponse(responseCode = "404", description = "No matching non-expired instruments found",
+                    content = @Content),
+            @ApiResponse(responseCode = "401", description = "No active Kite session",
+                    content = @Content),
+            @ApiResponse(responseCode = "502", description = "Kite instrument service failed",
+                    content = @Content),
+            @ApiResponse(responseCode = "500", description = "Unexpected error",
+                    content = @Content)
+    })
+    public ResponseEntity<List<InstrumentResponse>> lookupInstruments(
+            @Parameter(
+                    description = "Trading symbols or exchange tokens to look up. Repeat this parameter or pass comma-delimited values.",
+                    example = "INFY,1594"
+            )
+            @RequestParam List<String> identifiers,
+            @Parameter(
+                    description = "Optional Kite exchange filter. Omit it to search all instruments.",
+                    example = "NSE",
+                    schema = @Schema(allowableValues = {"NSE", "BSE", "NFO", "BFO", "CDS", "MCX"})
+            )
+            @RequestParam Optional<String> exchange) {
+        return ResponseEntity.ok(instrumentService.listInstrumentsByIdentifiers(exchange, identifiers));
     }
 }

@@ -41,6 +41,16 @@ public class GlobalExceptionHandler {
         return pd;
     }
 
+    @ExceptionHandler(InstrumentNotFoundException.class)
+    public ProblemDetail handleInstrumentNotFound(InstrumentNotFoundException ex) {
+        log.warn("Instrument lookup failed: {}", ex.getMessage());
+        ProblemDetail pd = ProblemDetail.forStatusAndDetail(
+                HttpStatus.NOT_FOUND, ex.getMessage());
+        pd.setType(URI.create("urn:algotrading:error:instrument-not-found"));
+        pd.setProperty("timestamp", Instant.now().toString());
+        return pd;
+    }
+
     @ExceptionHandler(MarketDataException.class)
     public ProblemDetail handleMarketData(MarketDataException ex) {
         log.error("Market data error: {}", ex.getMessage(), ex);

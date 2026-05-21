@@ -47,10 +47,43 @@ public class TradingStrategyService {
         TechnicalStrategy strategy = strategyRegistry.get(strategyName);
         List<Candle> candles = marketDataPort.fetchCandles(request);
 
-        log.debug("Fetched {} candles; handing off to strategy '{}'",
+        log.debug("Fetched candles count={} strategy='{}'",
                 candles.size(), strategyName);
 
-        return strategy.evaluate(candles);
+        StrategyDecision decision = strategy.evaluate(candles);
+        log.info("Strategy evaluated strategy='{}' signal={} candles={}",
+                strategyName,
+                decision.signal(),
+                candles.size());
+        return decision;
+    }
+
+    /**
+     * Fetch historical candles once and evaluate every registered strategy.
+     *
+     * @param request parameters for the historical data query
+     * @return one decision per registered strategy
+     */
+    public List<StrategyDecision> evaluateAll(HistoricalDataRequest request) {
+        List<String> strategyNames = strategyRegistry.listNames();
+        log.info("Evaluating all strategies count={} token='{}' from={} to={} interval={}",
+                strategyNames.size(),
+                request.instrumentToken(),
+                request.from(),
+                request.to(),
+                request.interval());
+
+        List<Candle> candles = marketDataPort.fetchCandles(request);
+        log.debug("Fetched candles count={} strategies={}", candles.size(), strategyNames);
+
+        List<StrategyDecision> decisions = strategyNames.stream()
+                .map(strategyName -> evaluateFetchedCandles(strategyName, candles))
+                .toList();
+
+        log.info("All strategies evaluated count={} candles={}",
+                decisions.size(),
+                candles.size());
+        return decisions;
     }
 
     /**
@@ -60,5 +93,23 @@ public class TradingStrategyService {
      */
     public List<String> listStrategies() {
         return strategyRegistry.listNames();
+    }
+
+    private StrategyDecision evaluateFetchedCandles(String strategyName, List<Candle> candles) {
+        log.debug("Handing fetched candles to strategy='{}'", strategyName);
+        try {
+            StrategyDecision decision = strategyRegistry.get(strategyName).evaluate(candles);
+            log.info("Strategy evaluated strategy='{}' signal={}",
+                    strategyName,
+                    decision.signal());
+            return decision;
+        } catch (RuntimeException ex) {
+            log.error("Strategy evaluation failed strategy='{}' candles={} error='{}'",
+                    strategyName,
+                    candles.size(),
+                    ex.getMessage(),
+                    ex);
+            throw ex;
+        }
     }
 }
