@@ -7,6 +7,7 @@ from zoneinfo import ZoneInfo
 
 
 INTRADAY_MAX_LOOKBACK_DAYS = 1
+ORDER_PLACEMENT_MODES = {"NONE", "BUY", "SELL", "ALL"}
 
 
 def _bool_env(name: str, default: bool = False) -> bool:
@@ -25,6 +26,7 @@ class AgentConfig:
     http_port: int
     enable_order_tools: bool
     allow_trading: bool
+    order_placement_mode: str
     prompt: str
     instrument_universe: str
     instrument_exchange: str
@@ -49,6 +51,7 @@ class AgentConfig:
             http_port=int(os.getenv("AGENT_HTTP_PORT", "8090")),
             enable_order_tools=_bool_env("AGENT_ENABLE_ORDER_TOOLS"),
             allow_trading=_bool_env("AGENT_ALLOW_TRADING"),
+            order_placement_mode=_order_placement_mode_env("AGENT_ORDER_PLACEMENT_MODE"),
             prompt=os.getenv("AGENT_RUN_PROMPT", default_run_prompt()),
             instrument_universe=os.getenv("AGENT_INSTRUMENT_UNIVERSE", default_instrument_universe()),
             instrument_exchange=os.getenv("AGENT_INSTRUMENT_EXCHANGE", "NSE").strip().upper(),
@@ -83,7 +86,8 @@ class AgentConfig:
 def default_run_prompt() -> str:
     return (
         "Run one scheduled algo-trading supervision cycle. Follow the required workflow exactly: "
-        "check service/auth status, lookup configured instruments on the configured exchange only, "
+        "check service/auth status, lookup only the configured instrument universe on the configured exchange, "
+        "do not fetch or scan all instruments, "
         "list registered strategies, execute only configured registered strategies for resolved instruments, inspect existing purchased/completed orders only "
         "when order tools are enabled, then decide BUY, SELL, or HOLD for each actionable result. If trading is enabled, place orders "
         "only after that decision step and according to the configured execution policy. Summarize "
@@ -142,6 +146,14 @@ def _date_env(name: str) -> date | None:
     if not value:
         return None
     return date.fromisoformat(value)
+
+
+def _order_placement_mode_env(name: str) -> str:
+    value = os.getenv(name, "NONE").strip().upper()
+    if value not in ORDER_PLACEMENT_MODES:
+        allowed = ", ".join(sorted(ORDER_PLACEMENT_MODES))
+        raise ValueError(f"{name} must be one of: {allowed}")
+    return value
 
 
 def default_instrument_universe() -> str:

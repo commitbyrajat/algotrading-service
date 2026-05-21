@@ -36,6 +36,7 @@ export AGENT_CRON_MINUTES="*/5"
 export AGENT_TIMEZONE="Asia/Kolkata"
 export AGENT_ENABLE_ORDER_TOOLS="false"
 export AGENT_ALLOW_TRADING="false"
+export AGENT_ORDER_PLACEMENT_MODE="NONE"
 export AGENT_INSTRUMENT_EXCHANGE="NSE"
 export AGENT_STRATEGY_NAMES="GAINZ_ALPHA_V2"
 export AGENT_HTTP_HOST="0.0.0.0"
@@ -159,6 +160,7 @@ To allow the agent to place orders from its strategy recommendations:
 ```bash
 export AGENT_ENABLE_ORDER_TOOLS=true
 export AGENT_ALLOW_TRADING=true
+export AGENT_ORDER_PLACEMENT_MODE=ALL
 export AGENT_ORDER_QUANTITY=1
 export AGENT_ORDER_PRODUCT=CNC
 export AGENT_ORDER_TYPE=MARKET
@@ -172,10 +174,16 @@ Execution rules:
 - The agent executes strategies only for resolved instruments.
 - The agent may inspect existing purchased/completed orders before deciding
   whether to BUY, SELL, or HOLD only when `AGENT_ENABLE_ORDER_TOOLS=true`.
+- `AGENT_ALLOW_TRADING=true` does not permit placement by itself. Set
+  `AGENT_ORDER_PLACEMENT_MODE=BUY`, `SELL`, or `ALL` to allow the matching
+  mutating order side. The default is `NONE`.
 - BUY decisions use the place-order MCP tool with `transactionType=BUY`, only
-  when `AGENT_ENABLE_ORDER_TOOLS=true`, `AGENT_ALLOW_TRADING=true`, and no duplicate exposure exists.
+  when `AGENT_ENABLE_ORDER_TOOLS=true`, `AGENT_ALLOW_TRADING=true`,
+  `AGENT_ORDER_PLACEMENT_MODE` is `BUY` or `ALL`, and no duplicate exposure exists.
 - SELL decisions use the exit/sell MCP tool only after the agent confirms an
-  existing completed BUY/position for that symbol, and only when both flags are enabled.
+  existing completed BUY/position for that symbol, and only when
+  `AGENT_ENABLE_ORDER_TOOLS=true`, `AGENT_ALLOW_TRADING=true`, and
+  `AGENT_ORDER_PLACEMENT_MODE` is `SELL` or `ALL`.
 - HOLD decisions never place orders.
 - MARKET orders use `price=0` and `triggerPrice=0`.
 - The agent checks order status when an order id is returned.

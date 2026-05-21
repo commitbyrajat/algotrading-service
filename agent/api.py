@@ -39,6 +39,7 @@ def create_app(agent_scheduler: AgentScheduler) -> FastAPI:
             "mcp_url": agent_scheduler.config.mcp_url,
             "cron_minutes": agent_scheduler.config.cron_minutes,
             "trading_enabled": agent_scheduler.config.allow_trading,
+            "order_placement_mode": agent_scheduler.config.order_placement_mode,
             "next_run_at": job.next_run_time.isoformat() if job and job.next_run_time else None,
         }
 
