@@ -71,7 +71,7 @@ public class OrderService {
                 request.transactionType(), request.tradingSymbol(), request.quantity());
         validateSellOrderAgainstPurchasedOrderCache(request);
         PlacedOrderResponse response = orderPort.placeOrder(request);
-        evictPurchasedOrdersCache();
+        evictPurchasedOrdersCacheAfterSuccessfulOrder(request);
         return response;
     }
 
@@ -87,7 +87,7 @@ public class OrderService {
                 sellOrder.tradingSymbol(), sellOrder.quantity());
         validateSellOrderAgainstPurchasedOrderCache(sellOrder);
         PlacedOrderResponse response = orderPort.placeOrder(sellOrder);
-        evictPurchasedOrdersCache();
+        evictPurchasedOrdersCacheForSymbol(sellOrder.tradingSymbol());
         return response;
     }
 
@@ -299,6 +299,64 @@ public class OrderService {
                     ex.getClass().getSimpleName(),
                     ex.getMessage());
         }
+    }
+
+    private void evictPurchasedOrdersCacheAfterSuccessfulOrder(OrderRequest request) {
+        if ("SELL".equalsIgnoreCase(request.transactionType())) {
+            evictPurchasedOrdersCacheForSymbol(request.tradingSymbol());
+            return;
+        }
+        evictPurchasedOrdersCache();
+    }
+
+    private void evictPurchasedOrdersCacheForSymbol(String tradingSymbol) {
+        if (!isPurchasedOrderCacheAvailable()) {
+            return;
+        }
+
+        String normalizedSymbol = normalizeTradingSymbol(tradingSymbol);
+        if (normalizedSymbol.isBlank()) {
+            return;
+        }
+
+        try {
+            String symbolCacheKey = purchasedOrderSymbolCacheKey(normalizedSymbol);
+            redis.delete(symbolCacheKey);
+            removePurchasedOrderSymbolFromIndex(normalizedSymbol);
+            log.info("Evicted purchased-order cache for tradingSymbol={} key={}",
+                    normalizedSymbol,
+                    symbolCacheKey);
+        } catch (Exception ex) {
+            log.warn("Could not evict purchased-order cache for tradingSymbol={} ({}): {}",
+                    normalizedSymbol,
+                    ex.getClass().getSimpleName(),
+                    ex.getMessage());
+        }
+    }
+
+    private void removePurchasedOrderSymbolFromIndex(String normalizedSymbol) throws JacksonException {
+        String symbolsJson = redis.opsForValue().get(PURCHASED_ORDER_SYMBOLS_CACHE_KEY);
+        if (symbolsJson == null || symbolsJson.isBlank()) {
+            return;
+        }
+
+        List<String> symbols = objectMapper.readValue(symbolsJson, SYMBOL_LIST_TYPE);
+        List<String> remainingSymbols = symbols.stream()
+                .map(this::normalizeTradingSymbol)
+                .filter(symbol -> !symbol.equals(normalizedSymbol))
+                .distinct()
+                .toList();
+
+        if (remainingSymbols.isEmpty()) {
+            redis.delete(PURCHASED_ORDER_SYMBOLS_CACHE_KEY);
+            return;
+        }
+
+        redis.opsForValue().set(
+                PURCHASED_ORDER_SYMBOLS_CACHE_KEY,
+                objectMapper.writeValueAsString(remainingSymbols),
+                PURCHASED_ORDER_CACHE_TTL
+        );
     }
 
     private String purchasedOrderSymbolCacheKey(String tradingSymbol) {
