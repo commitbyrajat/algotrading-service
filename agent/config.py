@@ -39,6 +39,7 @@ class AgentConfig:
     order_product: str
     order_type: str
     max_orders_per_cycle: int
+    market_close_liquidation_enabled: bool
     today_override: date | None
     timezone: str
 
@@ -65,6 +66,7 @@ class AgentConfig:
             order_product=os.getenv("AGENT_ORDER_PRODUCT", "CNC"),
             order_type=os.getenv("AGENT_ORDER_TYPE", "MARKET"),
             max_orders_per_cycle=int(os.getenv("AGENT_MAX_ORDERS_PER_CYCLE", "2")),
+            market_close_liquidation_enabled=_bool_env("AGENT_MARKET_CLOSE_LIQUIDATION_ENABLED"),
             today_override=_date_env("AGENT_TODAY"),
             timezone=os.getenv("AGENT_TIMEZONE", "Asia/Kolkata"),
         )

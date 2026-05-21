@@ -50,6 +50,7 @@ export AGENT_ORDER_QUANTITY="1"
 export AGENT_ORDER_PRODUCT="CNC"
 export AGENT_ORDER_TYPE="MARKET"
 export AGENT_MAX_ORDERS_PER_CYCLE="2"
+export AGENT_MARKET_CLOSE_LIQUIDATION_ENABLED="false"
 export AGENT_TODAY="2026-05-20"
 export AGENT_INSTRUMENT_UNIVERSE="SHEKHAWATI
 DRCSYSTEMS
@@ -190,6 +191,23 @@ Execution rules:
 - The agent checks order status when an order id is returned.
 - If `AGENT_ALLOW_TRADING=false`, the agent reports intended actions without
   calling order placement tools.
+
+### Market Close Liquidation
+
+Set `AGENT_MARKET_CLOSE_LIQUIDATION_ENABLED=true` to make the agent close open
+purchased positions near market close. When enabled, any cycle that starts from
+15:20:00 inclusive to before 15:30:00 in `AGENT_TIMEZONE` fetches
+`/api/v1/orders/purchased`, groups remaining purchased quantity by symbol,
+exchange, and product, submits SELL exit orders for all grouped positions, and
+skips the normal strategy workflow for that cycle.
+The liquidation path is not capped by `AGENT_MAX_ORDERS_PER_CYCLE`; the purpose
+of the flag is to close all purchased positions found in that window.
+
+This feature still requires:
+
+- `AGENT_ENABLE_ORDER_TOOLS=true`
+- `AGENT_ALLOW_TRADING=true`
+- `AGENT_ORDER_PLACEMENT_MODE=SELL` or `AGENT_ORDER_PLACEMENT_MODE=ALL`
 
 ### Logs
 
