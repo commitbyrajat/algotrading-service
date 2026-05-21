@@ -1,0 +1,15 @@
+[project]
+name = "agent"
+version = "0.1.0"
+description = "Scheduled Pydantic AI agent for the algo trading MCP endpoint"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "apscheduler>=3.11.0",
+    "fastapi>=0.115.0",
+    "pydantic-ai-slim[mcp,openai]>=1.0.0",
+    "uvicorn[standard]>=0.30.0",
+]
+
+[project.scripts]
+algotrading-agent = "main:main"

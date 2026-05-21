@@ -13,7 +13,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class KiteOrderAdapterTest {
 
     @Test
-    void listPurchasedOrders_returnsOnlyCompletedFilledBuyOrders_sortedNewestFirst() {
+    void listPurchasedOrders_returnsOnlyUnsoldCompletedFilledBuyOrders_sortedNewestFirst() {
         Order olderCompletedBuy = order(
                 "order-1",
                 "INFY",
@@ -81,7 +81,7 @@ class KiteOrderAdapterTest {
 
         assertThat(response)
                 .extracting(PurchasedOrderResponse::orderId)
-                .containsExactly("order-2", "order-1");
+                .containsExactly("order-2");
 
         PurchasedOrderResponse first = response.getFirst();
         assertThat(first.tradingSymbol()).isEqualTo("SBIN");
@@ -95,6 +95,43 @@ class KiteOrderAdapterTest {
         assertThat(first.averagePrice()).isEqualTo(825.10);
         assertThat(first.status()).isEqualTo("COMPLETE");
         assertThat(first.orderTimestamp()).isEqualTo(Instant.parse("2026-05-16T09:15:30Z"));
+    }
+
+    @Test
+    void listPurchasedOrders_reducesBuyFilledQuantityWhenLaterSellPartiallyExitsPosition() {
+        Order completedBuy = order(
+                "order-1",
+                "INFY",
+                "BUY",
+                "COMPLETE",
+                "10",
+                "10",
+                "0",
+                "1725.45",
+                Instant.parse("2026-05-16T08:15:30Z")
+        );
+        Order completedSell = order(
+                "order-2",
+                "INFY",
+                "SELL",
+                "COMPLETE",
+                "4",
+                "4",
+                "0",
+                "1730.00",
+                Instant.parse("2026-05-16T10:15:30Z")
+        );
+        KiteOrderAdapter adapter = new KiteOrderAdapter(new FakeKiteConnect(List.of(
+                completedBuy,
+                completedSell
+        )));
+
+        List<PurchasedOrderResponse> response = adapter.listPurchasedOrders();
+
+        assertThat(response).hasSize(1);
+        assertThat(response.getFirst().orderId()).isEqualTo("order-1");
+        assertThat(response.getFirst().quantity()).isEqualTo(10);
+        assertThat(response.getFirst().filledQuantity()).isEqualTo(6);
     }
 
     @Test

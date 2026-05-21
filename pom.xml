@@ -20,6 +20,7 @@
     <maven.compiler.release>21</maven.compiler.release>
     <ta4j.version>0.22.6</ta4j.version>
     <kiteconnect.version>4.0.0</kiteconnect.version>
+    <resilience4j.version>2.3.0</resilience4j.version>
     <springdoc.version>3.0.3</springdoc.version>
   </properties>
   <dependencies>
@@ -53,6 +54,12 @@
       <groupId>com.zerodhatech.kiteconnect</groupId>
       <artifactId>kiteconnect</artifactId>
       <version>${kiteconnect.version}</version>
+    </dependency>
+    <!-- ==================== Resilience4j Retry ==================== -->
+    <dependency>
+      <groupId>io.github.resilience4j</groupId>
+      <artifactId>resilience4j-retry</artifactId>
+      <version>${resilience4j.version}</version>
     </dependency>
     <!-- ==================== Test ==================== -->
     <dependency>

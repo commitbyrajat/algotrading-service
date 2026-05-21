@@ -22,6 +22,9 @@ kite:
   # Must exactly match the Redirect URL set in the Kite Connect Developer Console
   redirect-url: ${KITE_REDIRECT_URL:http://127.0.0.1:8080/kite/callback}
 
+instrument:
+  require-expiry-for-lookup: ${INSTRUMENT_REQUIRE_EXPIRY_FOR_LOOKUP:false}
+
 logging:
   level:
     root: INFO

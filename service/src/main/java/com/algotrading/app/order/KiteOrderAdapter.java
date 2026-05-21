@@ -10,8 +10,12 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 /**
  * Adapter that wraps Zerodha Kite SDK order APIs.
@@ -90,11 +94,17 @@ public class KiteOrderAdapter implements OrderPort {
 
     @Override
     public List<PurchasedOrderResponse> listPurchasedOrders() {
-        log.debug("Fetching Kite order book for completed BUY orders");
+        log.debug("Fetching Kite order book for open completed BUY quantities");
         try {
-            return kiteConnect.getOrders().stream()
-                    .filter(KiteOrderAdapter::isCompletedBuyOrder)
-                    .map(KiteOrderAdapter::toPurchasedOrderResponse)
+            List<Order> completedFilledOrders = kiteConnect.getOrders().stream()
+                    .filter(KiteOrderAdapter::isCompletedFilledBuyOrSellOrder)
+                    .sorted(Comparator.comparing(
+                            KiteOrderAdapter::orderTimestamp,
+                            Comparator.nullsLast(Comparator.naturalOrder())))
+                    .toList();
+
+            return remainingBuyLotsAfterCompletedSells(completedFilledOrders).stream()
+                    .map(BuyLot::toPurchasedOrderResponse)
                     .sorted(Comparator.comparing(
                             PurchasedOrderResponse::orderTimestamp,
                             Comparator.nullsLast(Comparator.reverseOrder())))
@@ -197,6 +207,49 @@ public class KiteOrderAdapter implements OrderPort {
                 && parseInt(order.filledQuantity) > 0;
     }
 
+    private static boolean isCompletedSellOrder(Order order) {
+        return "SELL".equalsIgnoreCase(order.transactionType)
+                && "COMPLETE".equalsIgnoreCase(order.status)
+                && parseInt(order.filledQuantity) > 0;
+    }
+
+    private static boolean isCompletedFilledBuyOrSellOrder(Order order) {
+        return isCompletedBuyOrder(order) || isCompletedSellOrder(order);
+    }
+
+    private static List<BuyLot> remainingBuyLotsAfterCompletedSells(List<Order> completedFilledOrders) {
+        Map<String, List<BuyLot>> lotsBySymbol = new LinkedHashMap<>();
+
+        for (Order order : completedFilledOrders) {
+            String symbol = normalizeTradingSymbol(order.tradingSymbol);
+            if (symbol.isBlank()) {
+                continue;
+            }
+
+            if (isCompletedBuyOrder(order)) {
+                lotsBySymbol.computeIfAbsent(symbol, ignored -> new ArrayList<>())
+                        .add(new BuyLot(order, parseInt(order.filledQuantity)));
+                continue;
+            }
+
+            int remainingSellQuantity = parseInt(order.filledQuantity);
+            List<BuyLot> buyLots = lotsBySymbol.getOrDefault(symbol, List.of());
+            for (BuyLot buyLot : buyLots) {
+                if (remainingSellQuantity <= 0) {
+                    break;
+                }
+                int consumedQuantity = Math.min(buyLot.remainingQuantity, remainingSellQuantity);
+                buyLot.remainingQuantity -= consumedQuantity;
+                remainingSellQuantity -= consumedQuantity;
+            }
+        }
+
+        return lotsBySymbol.values().stream()
+                .flatMap(List::stream)
+                .filter(BuyLot::hasRemainingQuantity)
+                .toList();
+    }
+
     private static PurchasedOrderResponse toPurchasedOrderResponse(Order order) {
         return new PurchasedOrderResponse(
                 order.orderId,
@@ -214,6 +267,14 @@ public class KiteOrderAdapter implements OrderPort {
         );
     }
 
+    private static Instant orderTimestamp(Order order) {
+        return order.orderTimestamp != null ? order.orderTimestamp.toInstant() : null;
+    }
+
+    private static String normalizeTradingSymbol(String tradingSymbol) {
+        return tradingSymbol == null ? "" : tradingSymbol.trim().toUpperCase(Locale.ROOT);
+    }
+
     private static int parseInt(String value) {
         if (value == null || value.isBlank()) {
             return 0;
@@ -226,5 +287,36 @@ public class KiteOrderAdapter implements OrderPort {
             return 0.0;
         }
         return Double.parseDouble(value);
+    }
+
+    private static final class BuyLot {
+        private final Order order;
+        private int remainingQuantity;
+
+        private BuyLot(Order order, int remainingQuantity) {
+            this.order = order;
+            this.remainingQuantity = remainingQuantity;
+        }
+
+        private boolean hasRemainingQuantity() {
+            return remainingQuantity > 0;
+        }
+
+        private PurchasedOrderResponse toPurchasedOrderResponse() {
+            return new PurchasedOrderResponse(
+                    order.orderId,
+                    order.tradingSymbol,
+                    order.exchange,
+                    order.product,
+                    order.orderType,
+                    order.transactionType,
+                    parseInt(order.quantity),
+                    remainingQuantity,
+                    parseDouble(order.price),
+                    parseDouble(order.averagePrice),
+                    order.status,
+                    orderTimestamp(order)
+            );
+        }
     }
 }

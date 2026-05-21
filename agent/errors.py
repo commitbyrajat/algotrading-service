@@ -1,0 +1,2 @@
+class AgentAlreadyRunningError(RuntimeError):
+    pass
