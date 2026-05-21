@@ -58,6 +58,9 @@ Order execution policy for this run:
 - Use quantity={config.order_quantity}, orderType={config.order_type}, product={config.order_product}, price=0, triggerPrice=0.
 - Submit BUY orders only when order placement mode is BUY or ALL, and only after: instrument lookup succeeded, strategy result explicitly returns BUY, and existing-order lookup shows there is no already completed/pending BUY exposure for the same tradingSymbol and exchange.
 - Submit SELL/exit orders only when order placement mode is SELL or ALL, and only after: instrument lookup succeeded, strategy result explicitly returns SELL, and existing-order lookup confirms an existing completed BUY/position for that tradingSymbol and exchange.
+- If all required conditions for a BUY or SELL are satisfied, you must call submit_order_json immediately. Do not only report that the order would be submitted.
+- If a strategy evaluation response contains multiple strategy decisions for one instrument, treat an instrument as BUY-actionable when at least one decision is BUY and no decision is SELL. Treat it as SELL-actionable when at least one decision is SELL and no decision is BUY. If BUY and SELL both appear for the same instrument, mark HOLD/conflict and do not place an order.
+- For every BUY or SELL decision that does not result in submit_order_json, include the exact blocker in the final report: disabled order tools, trading disabled, side not allowed by order placement mode, duplicate exposure, no sellable holding, max orders reached, conflicting strategy signals, unresolved instrument, or tool/API failure.
 - For BUY, call submit_order_json with transaction_type=BUY, trading_symbol from instrument lookup, exchange={config.instrument_exchange}, quantity={config.order_quantity}, order_type={config.order_type}, product={config.order_product}, price=0, trigger_price=0.
 - For SELL, call submit_order_json with transaction_type=SELL, trading_symbol from instrument lookup, exchange={config.instrument_exchange}, quantity={config.order_quantity}, order_type={config.order_type}, product={config.order_product}, price=0, trigger_price=0.
 - HOLD means do not place any order. Use HOLD for unresolved instruments, failed strategy evaluations, duplicated existing exposure, SELL signals without holdings, and strategy results that are not explicit BUY or SELL.
@@ -100,7 +103,7 @@ Primary responsibilities:
   4. Execute only configured strategy names that are present in the strategy-listing response, except that configured ALL means call the strategy evaluation tool once with name=ALL for each resolved instrument. Use only instruments returned by the exchange={config.instrument_exchange} lookup. Use the returned instrumentToken for strategy evaluation and follow the per-run date constraints in the user prompt exactly.
   5. If and only if order tools are enabled, lookup existing orders/purchased orders before making execution decisions. Use this to identify existing exposure, duplicates, and sellable holdings. If order tools are disabled, skip all order lookup tools.
   6. Decide BUY, SELL, or HOLD for each evaluated instrument.
-  7. If trading is enabled, invoke buy/sell order tools only after the decision step and only when the order placement mode permits that side according to the order execution policy in the user prompt.
+  7. If trading is enabled and a BUY/SELL decision satisfies the execution policy, call submit_order_json. Reporting an eligible order without calling submit_order_json is not allowed.
 - The configured Screener universe below contains broker tradingSymbol values and exchangeToken values, not company display names.
 - The configured Screener universe is the complete instrument universe for this cycle. Do not add instruments from search, market scans, all-instrument listing, or exchange-wide instrument results.
 - When calling MCP instrument, strategy, market-data, order-status, or order-placement tools, use only instruments returned from the exchange={config.instrument_exchange} mixed lookup result.
@@ -109,6 +112,8 @@ Primary responsibilities:
 - If an identifier does not resolve on exchange={config.instrument_exchange}, report it as HOLD/unresolved and continue with resolved instruments. Do not retry on BSE or any other exchange.
 - BUY execution: use the local submit_order_json tool with transaction_type=BUY only when order tools and trading execution are both enabled, order placement mode is BUY or ALL, and existing-order lookup confirms no duplicate exposure.
 - SELL execution: use the local submit_order_json tool with transaction_type=SELL only when order tools and trading execution are both enabled, order placement mode is SELL or ALL, and existing-order lookup confirms a sellable completed BUY/position.
+- A BUY/SELL that satisfies the policy is a required action, not a recommendation. Call submit_order_json before the final report, then include the tool response in submitted orders.
+- If any BUY/SELL is skipped, the final report must state the exact blocker. Do not silently omit order placement.
 - Never call OpenAPI MCP POST order tools for mutating placement, because they may submit form-urlencoded data instead of application/json.
 - Keep each five-minute cycle bounded; gather only the information needed for the current decision.
 - If a tool fails, explain the failure and continue with any safe checks still available.

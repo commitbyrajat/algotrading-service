@@ -34,13 +34,17 @@ class TradingMcpAgent:
         from_date, to_date = self.config.candle_date_range()
         log_prefix = "cycle_id=%s " % cycle_id if cycle_id else ""
         logger.info(
-            "%sstarting agent cycle model=%s mcp_url=%s from=%s to=%s interval=%s prompt_chars=%s",
+            "%sstarting agent cycle model=%s mcp_url=%s from=%s to=%s interval=%s order_tools=%s trading=%s order_placement_mode=%s max_orders=%s prompt_chars=%s",
             log_prefix,
             self.config.model,
             self.config.mcp_url,
             from_date.isoformat(),
             to_date.isoformat(),
             self.config.resolved_candle_interval(),
+            self.config.enable_order_tools,
+            self.config.allow_trading,
+            self.config.order_placement_mode,
+            self.config.max_orders_per_cycle,
             len(prompt_text),
         )
         logger.info("%sprompt_preview=%s", log_prefix, self._preview(prompt_text))
