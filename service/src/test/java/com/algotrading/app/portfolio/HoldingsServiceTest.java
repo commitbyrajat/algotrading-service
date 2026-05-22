@@ -1,14 +1,12 @@
-package com.algotrading.app.order;
+package com.algotrading.app.portfolio;
 
-import com.algotrading.app.portfolio.HoldingsService;
-import com.algotrading.app.portfolio.HoldingsPort;
-import com.algotrading.app.portfolio.HoldingResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.connection.BitFieldSubCommands;
 import org.springframework.data.redis.core.RedisOperations;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
+import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
 import java.time.Duration;
@@ -19,198 +17,77 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-class OrderServiceTest {
+class HoldingsServiceTest {
 
-    private CapturingOrderPort orderPort;
-    private OrderService service;
+    private static final TypeReference<List<String>> STRING_LIST_TYPE = new TypeReference<>() {
+    };
+
+    private CapturingHoldingsPort holdingsPort;
+    private FakeStringRedisTemplate redis;
+    private ObjectMapper objectMapper;
+    private HoldingsService service;
 
     @BeforeEach
     void setUp() {
-        orderPort = new CapturingOrderPort();
-        service = new OrderService(orderPort);
+        holdingsPort = new CapturingHoldingsPort();
+        redis = new FakeStringRedisTemplate();
+        objectMapper = new ObjectMapper();
+        service = new HoldingsService(holdingsPort, redis, objectMapper);
     }
 
     @Test
-    void exitPosition_placesSellOrder() {
-        ExitOrderRequest request = new ExitOrderRequest(
-                "INFY",
-                "NSE",
-                5,
-                "MARKET",
-                "CNC",
-                null,
-                null
-        );
+    void listHoldingsByTradingSymbol_returnsCachedSymbolHoldingsWithoutCallingKite() throws Exception {
+        HoldingResponse cached = sampleHolding("INFY");
+        redis.values.put("kite:holdings:INFY", objectMapper.writeValueAsString(List.of(cached)));
 
-        PlacedOrderResponse response = service.exitPosition(request);
+        List<HoldingResponse> result = service.listHoldingsByTradingSymbol(" infy ");
 
-        OrderRequest sellOrder = orderPort.lastRequest;
-
-        assertThat(sellOrder.tradingSymbol()).isEqualTo("INFY");
-        assertThat(sellOrder.exchange()).isEqualTo("NSE");
-        assertThat(sellOrder.transactionType()).isEqualTo("SELL");
-        assertThat(sellOrder.quantity()).isEqualTo(5);
-        assertThat(sellOrder.orderType()).isEqualTo("MARKET");
-        assertThat(sellOrder.product()).isEqualTo("CNC");
-        assertThat(sellOrder.price()).isZero();
-        assertThat(sellOrder.triggerPrice()).isZero();
-
-        assertThat(response.orderId()).isEqualTo("250101000001234");
-        assertThat(response.transactionType()).isEqualTo("SELL");
+        assertThat(result).containsExactly(cached);
+        assertThat(holdingsPort.listHoldingsCalls).isZero();
     }
 
     @Test
-    void exitOrderRequest_defaultsOptionalPricesToZero() {
-        ExitOrderRequest request = new ExitOrderRequest(
-                "SBIN",
-                "NSE",
-                1,
-                "LIMIT",
-                "CNC",
-                null,
-                null
-        );
+    void listHoldingsByTradingSymbol_lazyLoadsAndCachesGroupedHoldingsOnMiss() {
+        HoldingResponse infy = sampleHolding("INFY");
+        HoldingResponse tcs = sampleHolding("TCS");
+        holdingsPort.holdings = List.of(infy, tcs);
 
-        OrderRequest sellOrder = request.toSellOrderRequest();
+        List<HoldingResponse> result = service.listHoldingsByTradingSymbol("INFY");
 
-        assertThat(sellOrder.transactionType()).isEqualTo("SELL");
-        assertThat(sellOrder.price()).isZero();
-        assertThat(sellOrder.triggerPrice()).isZero();
+        assertThat(result).containsExactly(infy);
+        assertThat(holdingsPort.listHoldingsCalls).isOne();
+        assertThat(redis.values).containsKeys("kite:holdings:INFY", "kite:holdings:TCS", "kite:holdings:symbols");
+        assertThat(redis.expirations).containsEntry("kite:holdings:INFY", Duration.ofMinutes(60));
+        assertThat(redis.expirations).containsEntry("kite:holdings:TCS", Duration.ofMinutes(60));
+        assertThat(redis.expirations).containsEntry("kite:holdings:symbols", Duration.ofMinutes(60));
     }
 
     @Test
-    void listPurchasedOrders_delegatesToOrderPort() {
-        orderPort.purchasedOrders = List.of(new PurchasedOrderResponse(
-                "250101000001234",
-                "INFY",
-                "NSE",
-                "CNC",
-                "MARKET",
-                "BUY",
-                1,
-                1,
-                0.0,
-                1725.45,
-                "COMPLETE",
-                null
-        ));
+    void evictHoldingsCacheForSymbol_removesSymbolEntryAndIndexMember() throws Exception {
+        redis.values.put("kite:holdings:symbols", objectMapper.writeValueAsString(List.of("INFY", "TCS")));
+        redis.values.put("kite:holdings:INFY", objectMapper.writeValueAsString(List.of(sampleHolding("INFY"))));
+        redis.values.put("kite:holdings:TCS", objectMapper.writeValueAsString(List.of(sampleHolding("TCS"))));
 
-        List<PurchasedOrderResponse> response = service.listPurchasedOrders();
+        service.evictHoldingsCacheForSymbol(" infy ");
 
-        assertThat(response).hasSize(1);
-        assertThat(response.getFirst().orderId()).isEqualTo("250101000001234");
-        assertThat(response.getFirst().transactionType()).isEqualTo("BUY");
-        assertThat(response.getFirst().status()).isEqualTo("COMPLETE");
+        assertThat(redis.values).doesNotContainKey("kite:holdings:INFY");
+        assertThat(redis.values).containsKey("kite:holdings:TCS");
+        assertThat(objectMapper.readValue(redis.values.get("kite:holdings:symbols"), STRING_LIST_TYPE))
+                .containsExactly("TCS");
     }
 
-    @Test
-    void placeOrder_evictsHoldingsCacheAfterSuccessfulSellOrder() {
-        CapturingHoldingsService holdingsService = new CapturingHoldingsService();
-        service = new OrderService(orderPort, holdingsService, null, null);
-        OrderRequest request = new OrderRequest(
-                "INFY",
-                "NSE",
-                "SELL",
-                5,
-                "MARKET",
-                "CNC",
-                null,
-                null
-        );
-
-        service.placeOrder(request);
-
-        assertThat(holdingsService.evictedTradingSymbol).isEqualTo("INFY");
-    }
-
-    @Test
-    void placeOrder_allowsSellWhenPurchasedOrderCacheMissesButHoldingsHaveQuantity() {
-        CapturingHoldingsService holdingsService = new CapturingHoldingsService();
-        holdingsService.holdings = List.of(sampleHolding("INFY", 8, 0, 2));
-        service = new OrderService(orderPort, holdingsService, redisWithoutPurchasedOrders(), new ObjectMapper());
-
-        OrderRequest request = new OrderRequest(
-                "INFY",
-                "NSE",
-                "SELL",
-                5,
-                "MARKET",
-                "CNC",
-                null,
-                null
-        );
-
-        service.placeOrder(request);
-
-        assertThat(orderPort.lastRequest).isEqualTo(request);
-        assertThat(holdingsService.lookupTradingSymbol).isEqualTo("INFY");
-    }
-
-    @Test
-    void placeOrder_rejectsSellWhenNeitherPurchasedOrdersNorHoldingsHaveQuantity() {
-        CapturingHoldingsService holdingsService = new CapturingHoldingsService();
-        holdingsService.holdings = List.of(sampleHolding("INFY", 3, 0, 1));
-        service = new OrderService(orderPort, holdingsService, redisWithoutPurchasedOrders(), new ObjectMapper());
-
-        OrderRequest request = new OrderRequest(
-                "INFY",
-                "NSE",
-                "SELL",
-                5,
-                "MARKET",
-                "CNC",
-                null,
-                null
-        );
-
-        assertThatThrownBy(() -> service.placeOrder(request))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("neither purchased-order cache nor holdings cache has sufficient quantity")
-                .hasMessageContaining("requested=5")
-                .hasMessageContaining("purchasedOrderQuantity=0")
-                .hasMessageContaining("holdingQuantity=2");
-    }
-
-    @Test
-    void placeOrder_allowsSellWhenHoldingQuantityIsT1() {
-        CapturingHoldingsService holdingsService = new CapturingHoldingsService();
-        holdingsService.holdings = List.of(sampleHolding("JUSTDIAL", 0, 1, 0));
-        service = new OrderService(orderPort, holdingsService, redisWithoutPurchasedOrders(), new ObjectMapper());
-
-        OrderRequest request = new OrderRequest(
-                "JUSTDIAL",
-                "NSE",
-                "SELL",
-                1,
-                "MARKET",
-                "CNC",
-                null,
-                null
-        );
-
-        service.placeOrder(request);
-
-        assertThat(orderPort.lastRequest).isEqualTo(request);
-        assertThat(holdingsService.lookupTradingSymbol).isEqualTo("JUSTDIAL");
-    }
-
-    private StringRedisTemplate redisWithoutPurchasedOrders() {
-        return new FakeStringRedisTemplate();
-    }
-
-    private HoldingResponse sampleHolding(String tradingSymbol, int quantity, int t1Quantity, int usedQuantity) {
+    private HoldingResponse sampleHolding(String tradingSymbol) {
         return new HoldingResponse(
                 tradingSymbol,
                 "NSE",
                 "779521",
                 "INE062A01020",
                 "CNC",
-                quantity,
-                usedQuantity,
-                t1Quantity,
-                quantity,
+                1,
+                0,
+                0,
+                1,
                 0,
                 null,
                 0,
@@ -227,45 +104,14 @@ class OrderServiceTest {
         );
     }
 
-    private static class CapturingHoldingsService extends HoldingsService {
-        private String evictedTradingSymbol;
-        private String lookupTradingSymbol;
+    private static class CapturingHoldingsPort implements HoldingsPort {
         private List<HoldingResponse> holdings = List.of();
-
-        private CapturingHoldingsService() {
-            super((HoldingsPort) () -> List.of(), null, null);
-        }
+        private int listHoldingsCalls;
 
         @Override
-        public void evictHoldingsCacheForSymbol(String tradingSymbol) {
-            evictedTradingSymbol = tradingSymbol;
-        }
-
-        @Override
-        public List<HoldingResponse> listHoldingsByTradingSymbol(String tradingSymbol) {
-            lookupTradingSymbol = tradingSymbol;
+        public List<HoldingResponse> listHoldings() {
+            listHoldingsCalls++;
             return holdings;
-        }
-    }
-
-    private static class CapturingOrderPort implements OrderPort {
-        private OrderRequest lastRequest;
-        private List<PurchasedOrderResponse> purchasedOrders = List.of();
-
-        @Override
-        public PlacedOrderResponse placeOrder(OrderRequest request) {
-            lastRequest = request;
-            return PlacedOrderResponse.of("250101000001234", request);
-        }
-
-        @Override
-        public List<PurchasedOrderResponse> listPurchasedOrders() {
-            return purchasedOrders;
-        }
-
-        @Override
-        public OrderStatusResponse getOrderStatus(String orderId) {
-            throw new UnsupportedOperationException("status lookup is not used by these tests");
         }
     }
 

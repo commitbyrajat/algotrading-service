@@ -12,6 +12,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -37,12 +38,15 @@ public class HoldingsController {
      * List long-term equity delivery holdings.
      *
      * <pre>GET /api/v1/holdings</pre>
+     * <pre>GET /api/v1/holdings?tradingSymbol=INFY</pre>
      */
     @GetMapping
     @Operation(
             summary = "List Kite portfolio holdings",
             description = """
                     Returns long-term equity delivery holdings from Kite portfolio holdings.
+                    When tradingSymbol is supplied, holdings are resolved from the symbol cache
+                    and lazily loaded on cache miss.
                     This maps Kite Connect GET /portfolio/holdings and does not place orders.
                     """
     )
@@ -57,7 +61,11 @@ public class HoldingsController {
             @ApiResponse(responseCode = "500", description = "Unexpected error",
                     content = @Content)
     })
-    public ResponseEntity<List<HoldingResponse>> listHoldings() {
+    public ResponseEntity<List<HoldingResponse>> listHoldings(
+            @RequestParam(required = false) String tradingSymbol) {
+        if (tradingSymbol != null && !tradingSymbol.isBlank()) {
+            return ResponseEntity.ok(holdingsService.listHoldingsByTradingSymbol(tradingSymbol));
+        }
         return ResponseEntity.ok(holdingsService.listHoldings());
     }
 }

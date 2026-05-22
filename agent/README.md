@@ -146,8 +146,9 @@ If a scheduled cycle is already running, manual trigger returns HTTP `409`.
 ### Trading Execution
 
 Order tools are disabled by default. With `AGENT_ENABLE_ORDER_TOOLS=false`, the
-agent must not call any MCP tools related to orders, including purchased-order
-lookup, order status, order placement, exit, or sell tools.
+agent must not call any MCP tools related to orders or holdings, including
+purchased-order lookup, holdings lookup, order status, order placement, exit, or
+sell tools.
 
 To allow read-only order inspection without placement:
 
@@ -174,18 +175,22 @@ Execution rules:
 
 - The agent must first lookup instruments by trading symbol or exchange token.
 - The agent executes strategies only for resolved instruments.
-- The agent may inspect existing purchased/completed orders before deciding
-  whether to BUY, SELL, or HOLD only when `AGENT_ENABLE_ORDER_TOOLS=true`.
+- The agent may inspect existing purchased/completed orders and holdings before
+  deciding whether to BUY, SELL, or HOLD only when
+  `AGENT_ENABLE_ORDER_TOOLS=true`.
 - `AGENT_ALLOW_TRADING=true` does not permit placement by itself. Set
   `AGENT_ORDER_PLACEMENT_MODE=BUY`, `SELL`, or `ALL` to allow the matching
   mutating order side. The default is `NONE`.
 - BUY decisions use the place-order MCP tool with `transactionType=BUY`, only
   when `AGENT_ENABLE_ORDER_TOOLS=true`, `AGENT_ALLOW_TRADING=true`,
-  `AGENT_ORDER_PLACEMENT_MODE` is `BUY` or `ALL`, and no duplicate exposure exists.
+  `AGENT_ORDER_PLACEMENT_MODE` is `BUY` or `ALL`, holdings lookup succeeds, and
+  no duplicate exposure exists.
 - SELL decisions use the exit/sell MCP tool only after the agent confirms an
-  existing completed BUY/position for that symbol, and only when
+  existing completed BUY/position or sellable holding for that symbol, and only when
   `AGENT_ENABLE_ORDER_TOOLS=true`, `AGENT_ALLOW_TRADING=true`, and
   `AGENT_ORDER_PLACEMENT_MODE` is `SELL` or `ALL`.
+- The prompt requires the agent to call the holdings MCP tool before order
+  placement decisions; holdings lookup failures must be reported as blockers.
 - HOLD decisions never place orders.
 - MARKET orders use `price=0` and `triggerPrice=0`.
 - The agent checks order status when an order id is returned.

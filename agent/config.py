@@ -92,7 +92,7 @@ def default_run_prompt() -> str:
         "Run one scheduled algo-trading supervision cycle. Follow the required workflow exactly: "
         "check service/auth status, lookup only the configured instrument universe on the configured exchange, "
         "do not fetch or scan all instruments, "
-        "list registered strategies, execute only configured registered strategies for resolved instruments, inspect existing purchased/completed orders only "
+        "list registered strategies, execute only configured registered strategies for resolved instruments, inspect existing purchased/completed orders and holdings only "
         "when order tools are enabled, then decide BUY, SELL, or HOLD for each actionable result. If trading is enabled, place orders "
         "only after that decision step and according to the configured execution policy. Summarize "
         "market or service conditions, decisions, and submitted or skipped orders with specific API/tool evidence."
@@ -167,27 +167,27 @@ def default_instrument_universe() -> str:
           "QUESS",
           "IRCON",
           "GOLD360",
-          "FINEORG",
-          "YESBANK",
-          "IDEA",
-          "SUZLON",
+#           "FINEORG",
+#           "YESBANK",
+#           "IDEA",
+#           "SUZLON",
           "RVNL",
-          "IREDA",
-          "IRFC",
-          "HUDCO",
-          "NBCC",
-          "HFCL",
-          "RBLBANK",
-          "IEX",
-          "IRCTC",
-          "BHEL",
-          "NATIONALUM",
-          "INOXWIND",
-          "TRIDENT",
-          "JPPOWER",
-          "HINDCOPPER",
-          "VEDL",
-          "ACE"
+#           "IREDA",
+#           "IRFC",
+#           "HUDCO",
+#           "NBCC",
+#           "HFCL",
+#           "RBLBANK",
+#           "IEX",
+#           "IRCTC",
+#           "BHEL",
+#           "NATIONALUM",
+#           "INOXWIND",
+#           "TRIDENT",
+#           "JPPOWER",
+#           "HINDCOPPER",
+#           "VEDL",
+#           "ACE"
         ]
 #         ,[
 #           "WAAREEINDO",

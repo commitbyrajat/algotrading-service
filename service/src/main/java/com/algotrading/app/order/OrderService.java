@@ -1,5 +1,7 @@
 package com.algotrading.app.order;
 
+import com.algotrading.app.portfolio.HoldingsService;
+import com.algotrading.app.portfolio.HoldingResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -41,21 +43,25 @@ public class OrderService {
     private static final Duration PURCHASED_ORDER_CACHE_TTL = Duration.ofMinutes(60);
 
     private final OrderPort orderPort;
+    private final HoldingsService holdingsService;
     private final StringRedisTemplate redis;
     private final ObjectMapper objectMapper;
     private final Object purchasedOrdersCacheLock = new Object();
 
     @Autowired
     public OrderService(OrderPort orderPort,
+                        HoldingsService holdingsService,
                         StringRedisTemplate redis,
                         ObjectMapper objectMapper) {
         this.orderPort = orderPort;
+        this.holdingsService = holdingsService;
         this.redis = redis;
         this.objectMapper = objectMapper;
     }
 
     OrderService(OrderPort orderPort) {
         this.orderPort = orderPort;
+        this.holdingsService = null;
         this.redis = null;
         this.objectMapper = null;
     }
@@ -72,6 +78,7 @@ public class OrderService {
         validateSellOrderAgainstPurchasedOrderCache(request);
         PlacedOrderResponse response = orderPort.placeOrder(request);
         evictPurchasedOrdersCacheAfterSuccessfulOrder(request);
+        evictHoldingsCacheAfterSuccessfulSell(request);
         return response;
     }
 
@@ -88,6 +95,7 @@ public class OrderService {
         validateSellOrderAgainstPurchasedOrderCache(sellOrder);
         PlacedOrderResponse response = orderPort.placeOrder(sellOrder);
         evictPurchasedOrdersCacheForSymbol(sellOrder.tradingSymbol());
+        evictHoldingsCacheAfterSuccessfulSell(sellOrder);
         return response;
     }
 
@@ -186,25 +194,51 @@ public class OrderService {
         }
 
         String normalizedSymbol = normalizeTradingSymbol(request.tradingSymbol());
-        List<PurchasedOrderResponse> purchasedOrders = loadPurchasedOrdersForSymbolFromRedis(normalizedSymbol)
-                .orElseThrow(() -> new IllegalArgumentException(
-                        "Cannot place SELL order because tradingSymbol '" + normalizedSymbol
-                                + "' is not present in purchased-order cache"));
-
-        int sellableQuantity = purchasedOrders.stream()
-                .mapToInt(PurchasedOrderResponse::filledQuantity)
-                .sum();
-        if (sellableQuantity < request.quantity()) {
-            throw new IllegalArgumentException(
-                    "Cannot place SELL order because purchased-order cache has insufficient quantity for tradingSymbol '"
-                            + normalizedSymbol + "': requested=" + request.quantity()
-                            + ", cachedFilledQuantity=" + sellableQuantity);
+        int purchasedOrderQuantity = loadPurchasedOrdersForSymbolFromRedis(normalizedSymbol)
+                .map(this::sellablePurchasedOrderQuantity)
+                .orElse(0);
+        if (purchasedOrderQuantity >= request.quantity()) {
+            log.debug("SELL cache guard passed from purchased-order cache symbol={} requestedQty={} cachedFilledQty={}",
+                    normalizedSymbol,
+                    request.quantity(),
+                    purchasedOrderQuantity);
+            return;
         }
 
-        log.debug("SELL cache guard passed symbol={} requestedQty={} cachedFilledQty={}",
-                normalizedSymbol,
-                request.quantity(),
-                sellableQuantity);
+        int holdingQuantity = sellableHoldingQuantity(normalizedSymbol);
+        if (holdingQuantity >= request.quantity()) {
+            log.debug("SELL cache guard passed from holdings cache symbol={} requestedQty={} cachedHoldingQty={}",
+                    normalizedSymbol,
+                    request.quantity(),
+                    holdingQuantity);
+            return;
+        }
+
+        throw new IllegalArgumentException(
+                "Cannot place SELL order because neither purchased-order cache nor holdings cache has sufficient "
+                        + "quantity for tradingSymbol '" + normalizedSymbol + "': requested=" + request.quantity()
+                        + ", purchasedOrderQuantity=" + purchasedOrderQuantity
+                        + ", holdingQuantity=" + holdingQuantity);
+    }
+
+    private int sellablePurchasedOrderQuantity(List<PurchasedOrderResponse> purchasedOrders) {
+        return purchasedOrders.stream()
+                .mapToInt(PurchasedOrderResponse::filledQuantity)
+                .sum();
+    }
+
+    private int sellableHoldingQuantity(String normalizedSymbol) {
+        if (holdingsService == null) {
+            return 0;
+        }
+
+        return holdingsService.listHoldingsByTradingSymbol(normalizedSymbol).stream()
+                .mapToInt(this::sellableHoldingQuantity)
+                .sum();
+    }
+
+    private int sellableHoldingQuantity(HoldingResponse holding) {
+        return Math.max(0, holding.quantity() + holding.t1Quantity() - holding.usedQuantity());
     }
 
     private Optional<List<PurchasedOrderResponse>> loadPurchasedOrdersForSymbolFromRedis(String normalizedSymbol) {
@@ -307,6 +341,14 @@ public class OrderService {
             return;
         }
         evictPurchasedOrdersCache();
+    }
+
+    private void evictHoldingsCacheAfterSuccessfulSell(OrderRequest request) {
+        if (holdingsService == null || !"SELL".equalsIgnoreCase(request.transactionType())) {
+            return;
+        }
+
+        holdingsService.evictHoldingsCacheForSymbol(request.tradingSymbol());
     }
 
     private void evictPurchasedOrdersCacheForSymbol(String tradingSymbol) {
