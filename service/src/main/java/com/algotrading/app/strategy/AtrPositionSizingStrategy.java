@@ -1,8 +1,8 @@
 package com.algotrading.app.strategy;
 
+import com.algotrading.app.config.PositionSizingProperties;
 import com.algotrading.app.model.Candle;
 import com.algotrading.app.model.QuantitySuggestion;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -25,18 +25,12 @@ public class AtrPositionSizingStrategy implements PositionSizingStrategy {
     private final double atrMultiplier;
     private final double maxPortfolioExposurePercent;
 
-    public AtrPositionSizingStrategy(
-            @Value("${trading.position-sizing.capital:500000}") double capital,
-            @Value("${trading.position-sizing.risk-percent:0.01}") double riskPercent,
-            @Value("${trading.position-sizing.atr-period:14}") int atrPeriod,
-            @Value("${trading.position-sizing.atr-multiplier:1.5}") double atrMultiplier,
-            @Value("${trading.position-sizing.max-portfolio-exposure-percent:0.20}") double maxPortfolioExposurePercent
-    ) {
-        this.capital = capital;
-        this.riskPercent = riskPercent;
-        this.atrPeriod = atrPeriod;
-        this.atrMultiplier = atrMultiplier;
-        this.maxPortfolioExposurePercent = maxPortfolioExposurePercent;
+    public AtrPositionSizingStrategy(PositionSizingProperties properties) {
+        this.capital = properties.capital();
+        this.riskPercent = properties.riskPercent();
+        this.atrPeriod = properties.atrPeriod();
+        this.atrMultiplier = properties.atrMultiplier();
+        this.maxPortfolioExposurePercent = properties.maxPortfolioExposurePercent();
     }
 
     @Override

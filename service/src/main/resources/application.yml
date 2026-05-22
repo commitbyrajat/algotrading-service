@@ -25,6 +25,14 @@ kite:
 instrument:
   require-expiry-for-lookup: ${INSTRUMENT_REQUIRE_EXPIRY_FOR_LOOKUP:false}
 
+trading:
+  position-sizing:
+    capital: ${TRADING_POSITION_SIZING_CAPITAL:500000}
+    risk-percent: ${TRADING_POSITION_SIZING_RISK_PERCENT:0.01}
+    atr-period: ${TRADING_POSITION_SIZING_ATR_PERIOD:14}
+    atr-multiplier: ${TRADING_POSITION_SIZING_ATR_MULTIPLIER:1.5}
+    max-portfolio-exposure-percent: ${TRADING_POSITION_SIZING_MAX_PORTFOLIO_EXPOSURE_PERCENT:0.20}
+
 logging:
   level:
     root: INFO

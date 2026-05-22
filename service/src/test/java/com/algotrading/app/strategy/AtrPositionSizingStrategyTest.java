@@ -1,5 +1,6 @@
 package com.algotrading.app.strategy;
 
+import com.algotrading.app.config.PositionSizingProperties;
 import com.algotrading.app.model.Candle;
 import com.algotrading.app.model.QuantitySuggestion;
 import com.algotrading.app.util.CandleTestFactory;
@@ -14,11 +15,7 @@ class AtrPositionSizingStrategyTest {
     @Test
     void suggestBuyQuantity_usesAtrRiskAndExposureCap() {
         AtrPositionSizingStrategy strategy = new AtrPositionSizingStrategy(
-                500_000,
-                0.01,
-                14,
-                1.5,
-                0.20
+                defaultProperties()
         );
         List<Candle> candles = CandleTestFactory.uptrend(20, 100.0, 1.0);
 
@@ -37,16 +34,22 @@ class AtrPositionSizingStrategyTest {
     @Test
     void suggestBuyQuantity_returnsZero_whenCandlesAreInsufficientForAtr() {
         AtrPositionSizingStrategy strategy = new AtrPositionSizingStrategy(
-                500_000,
-                0.01,
-                14,
-                1.5,
-                0.20
+                defaultProperties()
         );
 
         QuantitySuggestion suggestion = strategy.suggestBuyQuantity(CandleTestFactory.flat(5, 100.0));
 
         assertThat(suggestion.suggestedQuantity()).isZero();
         assertThat(suggestion.explanation()).contains("Need at least 15 candles");
+    }
+
+    private PositionSizingProperties defaultProperties() {
+        return new PositionSizingProperties(
+                500_000,
+                0.01,
+                14,
+                1.5,
+                0.20
+        );
     }
 }

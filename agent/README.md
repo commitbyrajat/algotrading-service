@@ -1,70 +1,206 @@
-## Algo Trading Agent
+# Algo Trading Agent
 
-Scheduled Pydantic AI agent that connects to the OpenAPI MCP endpoint exposed by
-`openapi-mcp` in the root `docker-compose.yml`.
+Scheduled Pydantic AI agent for operating the Java algo-trading service through the OpenAPI MCP server.
 
-When run locally, the default MCP endpoint is:
+The agent is intentionally conservative:
+
+- It only evaluates the configured instrument universe.
+- It does not scan all instruments.
+- It never places orders unless order tools, trading execution, and side-specific order placement mode are all enabled.
+- It uses a local JSON tool, `submit_order_json`, for order placement instead of mutating OpenAPI MCP order tools.
+
+## Runtime Shape
 
 ```text
-http://localhost:3100/mcp
+agent/main.py
+  AgentConfig.from_env()
+  TradingMcpAgent
+  AgentScheduler
+    APScheduler cron job
+    FastAPI control API
 ```
 
-When run through Docker Compose, the agent uses the internal endpoint:
+External services:
 
-```text
-http://openapi-mcp:3100/mcp
-```
+- OpenAI-compatible model via `pydantic-ai`.
+- OpenAPI MCP endpoint, normally created by the root `openapi-mcp` Docker Compose service.
+- Java service API for direct JSON order submission and market-close liquidation.
 
-### Setup
+## Dependencies
+
+The agent uses Python 3.12 and `uv`.
 
 ```bash
-uv sync
+cd agent
+uv sync --locked
 ```
 
-Required environment:
+Main dependencies are:
+
+- `pydantic-ai-slim[mcp,openai]`
+- `apscheduler`
+- `fastapi`
+- `uvicorn`
+
+## Configuration
+
+Required:
 
 ```bash
 export OPENAI_API_KEY=...
 ```
 
-Optional environment:
+Core runtime settings:
 
-```bash
-export AGENT_MODEL="openai-chat:gpt-4o-mini"
-export MCP_ENDPOINT_URL="http://localhost:3100/mcp"
-export AGENT_APP_BASE_URL="http://localhost:8080"
-export AGENT_CRON_MINUTES="*/5"
-export AGENT_TIMEZONE="Asia/Kolkata"
-export AGENT_ENABLE_ORDER_TOOLS="false"
-export AGENT_ALLOW_TRADING="false"
-export AGENT_ORDER_PLACEMENT_MODE="NONE"
-export AGENT_INSTRUMENT_EXCHANGE="NSE"
-export AGENT_STRATEGY_NAMES="GAINZ_ALPHA_V2"
-export AGENT_HTTP_HOST="0.0.0.0"
-export AGENT_HTTP_PORT="8090"
-export AGENT_LOG_LEVEL="INFO"
-export AGENT_CANDLE_LOOKBACK_DAYS="120"
-export AGENT_INTRADAY_LOOKBACK_DAYS="1"
-export AGENT_CANDLE_INTERVAL=""
-export AGENT_ORDER_QUANTITY="1"
-export AGENT_ORDER_PRODUCT="CNC"
-export AGENT_ORDER_TYPE="MARKET"
-export AGENT_MAX_ORDERS_PER_CYCLE="2"
-export AGENT_MARKET_CLOSE_LIQUIDATION_ENABLED="false"
-export AGENT_TODAY="2026-05-20"
-export AGENT_INSTRUMENT_UNIVERSE="SHEKHAWATI
-DRCSYSTEMS
-EASEMYTRIP"
+| Variable | Default in code | Docker Compose default | Purpose |
+|---|---:|---:|---|
+| `AGENT_MODEL` | `openai-chat:gpt-4o-mini` | same | Pydantic AI model identifier |
+| `MCP_ENDPOINT_URL` | `http://localhost:3100/mcp` | `http://openapi-mcp:3100/mcp` | MCP endpoint URL |
+| `AGENT_APP_BASE_URL` | `http://localhost:8080` | `http://app:8080` | Java service base URL for direct JSON calls |
+| `AGENT_CRON_MINUTES` | `*/5` | same | APScheduler cron minute expression |
+| `AGENT_TIMEZONE` | `Asia/Kolkata` | same | Scheduler timezone and market-close window timezone |
+| `AGENT_HTTP_HOST` | `0.0.0.0` | same | FastAPI bind host |
+| `AGENT_HTTP_PORT` | `8090` | same | FastAPI bind port |
+| `AGENT_LOG_LEVEL` | `INFO` | same | Python logging level |
+
+Instrument and strategy settings:
+
+| Variable | Default in code | Docker Compose default | Purpose |
+|---|---:|---:|---|
+| `AGENT_INSTRUMENT_EXCHANGE` | `NSE` | same | Exchange used for lookup, strategy, and order payloads |
+| `AGENT_INSTRUMENT_UNIVERSE` | built-in multiline list | unset | Complete instrument input set for each cycle |
+| `AGENT_STRATEGY_NAMES` | `ALL`, `GAINZ_ALPHA_V2`, `SMA_CROSSOVER`, `RSI_MEAN_REVERSION` | `GAINZ_ALPHA_V2` | Strategies to evaluate |
+| `AGENT_RUN_PROMPT` | built-in supervision prompt | unset | Replaces the base run prompt before constraints are appended |
+
+Date and candle settings:
+
+| Variable | Default in code | Docker Compose default | Purpose |
+|---|---:|---:|---|
+| `AGENT_CANDLE_LOOKBACK_DAYS` | `120` | same | Lookback for non-intraday intervals |
+| `AGENT_INTRADAY_LOOKBACK_DAYS` | `1` | same | Requested intraday lookback, capped to 1 day |
+| `AGENT_CANDLE_INTERVAL` | unset means derive from cron | empty string | Explicit Kite candle interval override |
+| `AGENT_TODAY` | unset | empty string | Deterministic date override, format `YYYY-MM-DD` |
+
+Order settings:
+
+| Variable | Default | Purpose |
+|---|---:|---|
+| `AGENT_ENABLE_ORDER_TOOLS` | `false` | Allows order/holdings inspection tools when true |
+| `AGENT_ALLOW_TRADING` | `false` | Allows mutating trading only when true |
+| `AGENT_ORDER_PLACEMENT_MODE` | `NONE` | One of `NONE`, `BUY`, `SELL`, `ALL` |
+| `AGENT_ORDER_QUANTITY` | `1` | Quantity used for normal strategy-driven orders |
+| `AGENT_ORDER_PRODUCT` | `CNC` | Kite product for normal strategy-driven orders |
+| `AGENT_ORDER_TYPE` | `MARKET` | Kite order type for normal strategy-driven orders |
+| `AGENT_MAX_ORDERS_PER_CYCLE` | `2` | Maximum normal strategy-driven order submissions per cycle |
+| `AGENT_MARKET_CLOSE_LIQUIDATION_ENABLED` | `false` | Enables the separate market-close liquidation path |
+
+Boolean environment values are true when set to one of:
+
+```text
+1, true, yes, y, on
 ```
 
-By default, the agent uses trading symbols derived from the first page of the
-Screener "Best Penny Stocks" screen. The Screener display names are not passed
-to the broker instrument API. The agent first uses the mixed instrument lookup
-API, which accepts either Kite `tradingSymbol` values or `exchangeToken` values
-in the same identifier list. By default, the agent passes `exchange=NSE` for
-instrument lookup and does not retry unresolved symbols on BSE.
+## Default Instrument Universe
 
-### Docker Compose
+If `AGENT_INSTRUMENT_UNIVERSE` is not set, the current code uses this built-in list:
+
+```text
+JUSTDIAL
+QUESS
+IRCON
+GOLD360
+RVNL
+```
+
+Use newline-delimited values for overrides:
+
+```bash
+export AGENT_INSTRUMENT_UNIVERSE="JUSTDIAL
+QUESS
+IRCON"
+```
+
+The values are treated as broker `tradingSymbol` values or exchange-token identifiers. The agent prompts the model to use the mixed instrument lookup tool, pass only this universe, and never fetch all instruments.
+
+## Strategy Names
+
+`AGENT_STRATEGY_NAMES` is newline-delimited.
+
+The code default is:
+
+```text
+ALL
+GAINZ_ALPHA_V2
+SMA_CROSSOVER
+RSI_MEAN_REVERSION
+```
+
+Docker Compose currently defaults to:
+
+```text
+GAINZ_ALPHA_V2
+```
+
+`ALL` is a service-supported aggregate evaluation mode. The agent treats it as special: it should call strategy evaluation once with `name=ALL` per resolved instrument instead of expanding to individual strategy calls.
+
+## Candle Interval and Date Range
+
+Every run prompt includes explicit `from`, `to`, and `interval` constraints.
+
+If `AGENT_CANDLE_INTERVAL` is set and non-blank, that value is used directly.
+
+If it is unset or blank, the interval is derived from `AGENT_CRON_MINUTES`:
+
+| Cron minute expression | Resolved interval |
+|---|---|
+| `*/1` or `1` | `minute` |
+| `*/3` | `3minute` |
+| `*/5` | `5minute` |
+| `*/10` | `10minute` |
+| `*/15` | `15minute` |
+| `*/30` | `30minute` |
+| `*/60` or `60` | `60minute` |
+| other minute values under 60 | `5minute` |
+| non-minute cron expressions | `day` |
+
+Intraday intervals use `AGENT_INTRADAY_LOOKBACK_DAYS`, capped to `1`, so Kite historical requests stay within the short intraday range. Daily intervals use `AGENT_CANDLE_LOOKBACK_DAYS`.
+
+For deterministic testing:
+
+```bash
+export AGENT_TODAY=2026-05-22
+```
+
+## Running Locally
+
+Start the Java service and OpenAPI MCP server first. From the repository root, Docker Compose can provide those dependencies:
+
+```bash
+docker compose up redis app openapi-mcp
+```
+
+Run one cycle:
+
+```bash
+cd agent
+OPENAI_API_KEY=... uv run --locked python main.py --once
+```
+
+Run the scheduler and HTTP API:
+
+```bash
+cd agent
+OPENAI_API_KEY=... uv run --locked python main.py
+```
+
+With no local override, the agent uses:
+
+```text
+MCP_ENDPOINT_URL=http://localhost:3100/mcp
+AGENT_APP_BASE_URL=http://localhost:8080
+```
+
+## Docker Compose
 
 From the repository root:
 
@@ -74,46 +210,29 @@ docker compose up agent-build
 docker compose up agent
 ```
 
-To build and start the full stack including Redis, the Java service, MCP, and the
-agent:
+For the full stack:
 
 ```bash
 export OPENAI_API_KEY=...
 docker compose up
 ```
 
-The `agent-build` service runs:
+The Docker agent uses internal service URLs:
 
-```bash
-uv sync --locked
+```text
+MCP_ENDPOINT_URL=http://openapi-mcp:3100/mcp
+AGENT_APP_BASE_URL=http://app:8080
 ```
 
-The `agent` service starts the scheduler and HTTP API:
+The HTTP API is exposed on:
 
-```bash
-uv run --locked python main.py
+```text
+http://localhost:8090
 ```
 
-The HTTP API is exposed on port `8090`.
+## HTTP API
 
-### Run Once
-
-```bash
-uv run python main.py --once
-```
-
-### Run Every 5 Minutes
-
-```bash
-uv run python main.py
-```
-
-By default the scheduler runs one cycle immediately, then runs on the cron
-schedule `*/5 * * * *`.
-
-### HTTP Endpoints
-
-Health check:
+Health:
 
 ```bash
 curl http://localhost:8090/health
@@ -125,7 +244,9 @@ Scheduler status:
 curl http://localhost:8090/status
 ```
 
-Manually trigger one agent cycle with the default prompt:
+Status returns the model, MCP URL, app URL, cron expression, trading flag, order placement mode, market-close liquidation flag, and next scheduled run time.
+
+Manual run with the configured prompt:
 
 ```bash
 curl -X POST http://localhost:8090/agent/run \
@@ -133,32 +254,46 @@ curl -X POST http://localhost:8090/agent/run \
   -d '{}'
 ```
 
-Manually trigger one cycle with a custom prompt:
+Manual run with a custom base prompt:
 
 ```bash
 curl -X POST http://localhost:8090/agent/run \
   -H "Content-Type: application/json" \
-  -d '{"prompt":"Check the configured Screener penny-stock universe and report unresolved instruments only."}'
+  -d '{"prompt":"Check the configured universe and report unresolved instruments only."}'
 ```
+
+The custom prompt only replaces the base prompt. The agent still appends the date, instrument, strategy, and order-execution constraints.
 
 If a scheduled cycle is already running, manual trigger returns HTTP `409`.
 
-### Trading Execution
+## Trading Execution Policy
 
-Order tools are disabled by default. With `AGENT_ENABLE_ORDER_TOOLS=false`, the
-agent must not call any MCP tools related to orders or holdings, including
-purchased-order lookup, holdings lookup, order status, order placement, exit, or
-sell tools.
+Order tools are disabled by default.
 
-To allow read-only order inspection without placement:
+With:
+
+```bash
+AGENT_ENABLE_ORDER_TOOLS=false
+```
+
+the agent prompt forbids all MCP tools related to:
+
+- orders
+- purchased orders
+- order status
+- holdings
+- order placement
+- exit/sell
+
+Read-only inspection mode:
 
 ```bash
 export AGENT_ENABLE_ORDER_TOOLS=true
 export AGENT_ALLOW_TRADING=false
-docker compose up -d agent
+export AGENT_ORDER_PLACEMENT_MODE=NONE
 ```
 
-To allow the agent to place orders from its strategy recommendations:
+Trading mode:
 
 ```bash
 export AGENT_ENABLE_ORDER_TOOLS=true
@@ -168,101 +303,280 @@ export AGENT_ORDER_QUANTITY=1
 export AGENT_ORDER_PRODUCT=CNC
 export AGENT_ORDER_TYPE=MARKET
 export AGENT_MAX_ORDERS_PER_CYCLE=2
-docker compose up -d agent
 ```
 
-Execution rules:
-
-- The agent must first lookup instruments by trading symbol or exchange token.
-- The agent executes strategies only for resolved instruments.
-- The agent may inspect existing purchased/completed orders and holdings before
-  deciding whether to BUY, SELL, or HOLD only when
-  `AGENT_ENABLE_ORDER_TOOLS=true`.
-- `AGENT_ALLOW_TRADING=true` does not permit placement by itself. Set
-  `AGENT_ORDER_PLACEMENT_MODE=BUY`, `SELL`, or `ALL` to allow the matching
-  mutating order side. The default is `NONE`.
-- BUY decisions use the place-order MCP tool with `transactionType=BUY`, only
-  when `AGENT_ENABLE_ORDER_TOOLS=true`, `AGENT_ALLOW_TRADING=true`,
-  `AGENT_ORDER_PLACEMENT_MODE` is `BUY` or `ALL`, holdings lookup succeeds, and
-  no duplicate exposure exists.
-- SELL decisions use the exit/sell MCP tool only after the agent confirms an
-  existing completed BUY/position or sellable holding for that symbol, and only when
-  `AGENT_ENABLE_ORDER_TOOLS=true`, `AGENT_ALLOW_TRADING=true`, and
-  `AGENT_ORDER_PLACEMENT_MODE` is `SELL` or `ALL`.
-- The prompt requires the agent to call the holdings MCP tool before order
-  placement decisions; holdings lookup failures must be reported as blockers.
-- HOLD decisions never place orders.
-- MARKET orders use `price=0` and `triggerPrice=0`.
-- The agent checks order status when an order id is returned.
-- If `AGENT_ALLOW_TRADING=false`, the agent reports intended actions without
-  calling order placement tools.
-
-### Market Close Liquidation
-
-Set `AGENT_MARKET_CLOSE_LIQUIDATION_ENABLED=true` to make the agent close open
-purchased positions near market close. When enabled, any cycle that starts from
-15:20:00 inclusive to before 15:30:00 in `AGENT_TIMEZONE` fetches
-`/api/v1/orders/purchased`, groups remaining purchased quantity by symbol,
-exchange, and product, submits SELL exit orders for all grouped positions, and
-skips the normal strategy workflow for that cycle.
-The liquidation path is not capped by `AGENT_MAX_ORDERS_PER_CYCLE`; the purpose
-of the flag is to close all purchased positions found in that window.
-
-This feature still requires:
+Placement requires all of these to pass:
 
 - `AGENT_ENABLE_ORDER_TOOLS=true`
 - `AGENT_ALLOW_TRADING=true`
-- `AGENT_ORDER_PLACEMENT_MODE=SELL` or `AGENT_ORDER_PLACEMENT_MODE=ALL`
+- `AGENT_ORDER_PLACEMENT_MODE` permits the side
+- instrument resolved on `AGENT_INSTRUMENT_EXCHANGE`
+- strategy result is explicit `BUY` or explicit `SELL`
+- holdings lookup succeeds
+- purchased/existing-order lookup supports the decision
+- max orders per cycle has not been reached
 
-### Logs
+`AGENT_ALLOW_TRADING=true` alone is not enough. `AGENT_ORDER_PLACEMENT_MODE=NONE` blocks placement.
 
-Follow agent logs:
+## Local Order Placement Tool
+
+The agent registers a local tool:
+
+```text
+submit_order_json
+```
+
+It bypasses mutating OpenAPI MCP order tools and sends `application/json` directly to the Java service.
+
+For `BUY`, it calls:
+
+```text
+POST {AGENT_APP_BASE_URL}/api/v1/orders
+```
+
+with `transactionType=BUY`.
+
+For `SELL`, it calls:
+
+```text
+POST {AGENT_APP_BASE_URL}/api/v1/orders/exit
+```
+
+without `transactionType`, because the Java service exit endpoint always submits `SELL`.
+
+The local tool enforces:
+
+- order tools enabled
+- trading enabled
+- placement mode permits the side
+- exchange equals `AGENT_INSTRUMENT_EXCHANGE`
+- quantity is positive
+- price and trigger price are non-negative
+- normal per-cycle max order count
+
+The Java service still performs its own order validation, including SELL sellability checks against purchased orders and holdings.
+
+## BUY and SELL Decision Rules
+
+BUY:
+
+- Instrument must resolve on the configured exchange.
+- Strategy result must be explicit `BUY`.
+- Holdings lookup must succeed.
+- Existing-order lookup must show no duplicate completed or pending BUY exposure.
+- Placement mode must be `BUY` or `ALL`.
+
+SELL:
+
+- Instrument must resolve on the configured exchange.
+- Strategy result must be explicit `SELL`.
+- Holdings lookup must succeed.
+- Existing-order lookup plus holdings must confirm a completed BUY/position or sellable holding.
+- Placement mode must be `SELL` or `ALL`.
+
+If one strategy response contains both BUY and SELL for the same instrument, the prompt requires HOLD/conflict and no order.
+
+For every skipped BUY or SELL, the final report must include the blocker, such as disabled order tools, trading disabled, side not allowed, duplicate exposure, holdings lookup failed, no sellable holding, max orders reached, conflicting signals, unresolved instrument, or tool/API failure.
+
+## Market-Close Liquidation
+
+Set:
+
+```bash
+export AGENT_MARKET_CLOSE_LIQUIDATION_ENABLED=true
+```
+
+When enabled, any cycle starting from `15:20:00` inclusive to before `15:30:00` in `AGENT_TIMEZONE` skips the normal strategy workflow and runs the liquidation path.
+
+Liquidation flow:
+
+1. Verify order tools are enabled.
+2. Verify trading execution is enabled.
+3. Verify placement mode permits SELL.
+4. Fetch `GET {AGENT_APP_BASE_URL}/api/v1/orders/purchased`.
+5. Group purchased positions by trading symbol, exchange, and product.
+6. Submit one `POST /api/v1/orders/exit` request per grouped position.
+7. Return a market-close liquidation report.
+
+Required settings:
+
+```bash
+AGENT_ENABLE_ORDER_TOOLS=true
+AGENT_ALLOW_TRADING=true
+AGENT_ORDER_PLACEMENT_MODE=SELL
+```
+
+or:
+
+```bash
+AGENT_ORDER_PLACEMENT_MODE=ALL
+```
+
+Market-close liquidation is not capped by `AGENT_MAX_ORDERS_PER_CYCLE`; it is intended to close all purchased positions returned by the service.
+
+## Scheduler Behavior
+
+`python main.py` starts:
+
+- one immediate scheduled cycle
+- the APScheduler cron job
+- the FastAPI control server
+
+The scheduler uses:
+
+```python
+CronTrigger(minute=AGENT_CRON_MINUTES, timezone=AGENT_TIMEZONE)
+```
+
+Only one cycle can run at a time. Overlapping scheduled cycles are skipped, and overlapping manual runs return HTTP `409`.
+
+## Logs
+
+Follow Docker logs:
 
 ```bash
 docker compose logs -f agent
 ```
 
-Each agent run logs a `cycle_id`, trigger source, prompt preview, MCP URL, model,
-completion state, elapsed time, and final output.
+Useful log fields:
 
-Useful examples:
+- `cycle_id`
+- trigger source, `scheduled` or `manual`
+- model
+- MCP URL
+- date range
+- interval
+- order tool mode
+- trading mode
+- order placement mode
+- max orders
+- market-close liquidation flag
+- elapsed seconds
 
-```text
-cycle_id=abc123 trigger=scheduled state=started
-cycle_id=abc123 starting agent cycle model=openai-chat:gpt-4o-mini mcp_url=http://openapi-mcp:3100/mcp
-cycle_id=abc123 trigger=scheduled state=completed elapsed_seconds=12.34
+If OpenAI returns `429 Too Many Requests`, the agent reached the model provider but the provider rejected the request. Reduce schedule frequency, switch `AGENT_MODEL`, or fix account quota.
+
+## Common Commands
+
+Run once with order inspection disabled:
+
+```bash
+cd agent
+OPENAI_API_KEY=... uv run --locked python main.py --once
 ```
 
-If OpenAI returns `429 Too Many Requests`, the agent has reached the model call
-but the provider rejected the request due to rate limits or quota. In that case,
-reduce schedule frequency, switch `AGENT_MODEL`, or fix the OpenAI account quota.
+Run once with read-only order inspection:
 
-### Strategy Date Range
-
-The agent injects an explicit candle range and interval into every run prompt.
-It derives the Kite candle interval from `AGENT_CRON_MINUTES` unless
-`AGENT_CANDLE_INTERVAL` is set explicitly.
-
-For example, with `AGENT_CRON_MINUTES=*/5`, strategy calls must use:
-
-```text
-interval=5minute
+```bash
+cd agent
+OPENAI_API_KEY=... \
+AGENT_ENABLE_ORDER_TOOLS=true \
+AGENT_ALLOW_TRADING=false \
+uv run --locked python main.py --once
 ```
 
-Minute-based intervals use `AGENT_INTRADAY_LOOKBACK_DAYS`, capped to `1`, so
-the date range gap stays under 2 days for Kite historical-data limits. On
-`2026-05-20` with `AGENT_CRON_MINUTES=*/5`, strategy calls must use:
+Run once with SELL-only execution:
 
-```text
-from=2026-05-19
-to=2026-05-20
-interval=5minute
+```bash
+cd agent
+OPENAI_API_KEY=... \
+AGENT_ENABLE_ORDER_TOOLS=true \
+AGENT_ALLOW_TRADING=true \
+AGENT_ORDER_PLACEMENT_MODE=SELL \
+AGENT_ORDER_QUANTITY=1 \
+uv run --locked python main.py --once
 ```
 
-Day intervals use `AGENT_CANDLE_LOOKBACK_DAYS`, which defaults to `120`.
+Use daily candles explicitly:
 
-This prevents the model from copying old OpenAPI example dates such as
-`2024-06-06`.
+```bash
+export AGENT_CANDLE_INTERVAL=day
+```
 
-Set `AGENT_CANDLE_INTERVAL` only when you need to override the scheduler-derived
-interval explicitly. For deterministic testing, set `AGENT_TODAY=YYYY-MM-DD`.
+Use scheduler-derived 5-minute candles:
+
+```bash
+unset AGENT_CANDLE_INTERVAL
+export AGENT_CRON_MINUTES="*/5"
+```
+
+In Docker Compose, `AGENT_CANDLE_INTERVAL` defaults to an empty string, which also causes scheduler-derived interval selection.
+
+## Troubleshooting
+
+### Agent cannot connect to MCP
+
+Check the MCP server:
+
+```bash
+curl http://localhost:3100
+docker compose logs -f openapi-mcp
+```
+
+For local runs use:
+
+```bash
+export MCP_ENDPOINT_URL=http://localhost:3100/mcp
+```
+
+For Docker Compose, use the internal URL:
+
+```bash
+MCP_ENDPOINT_URL=http://openapi-mcp:3100/mcp
+```
+
+### Direct JSON order submission fails
+
+Check:
+
+- `AGENT_APP_BASE_URL`
+- Java service health
+- Kite authentication status
+- order placement mode
+- holdings and purchased-order state
+
+Useful service checks:
+
+```bash
+curl http://localhost:8080/api/v1/kite/status
+curl http://localhost:8080/api/v1/orders/purchased
+curl "http://localhost:8080/api/v1/holdings?tradingSymbol=JUSTDIAL"
+```
+
+### Agent uses old example dates
+
+The prompt explicitly injects the date range. Verify the runtime config in logs:
+
+```text
+from=...
+to=...
+interval=...
+```
+
+Set `AGENT_TODAY=YYYY-MM-DD` for deterministic testing.
+
+### Orders are not submitted even though strategy says BUY or SELL
+
+Check the final report blocker. Common causes:
+
+- `AGENT_ENABLE_ORDER_TOOLS=false`
+- `AGENT_ALLOW_TRADING=false`
+- `AGENT_ORDER_PLACEMENT_MODE=NONE`
+- side not allowed by placement mode
+- holdings lookup failed
+- no sellable holding
+- duplicate BUY exposure
+- max orders reached
+- unresolved instrument
+- conflicting strategy signals
+
+### Market-close liquidation does not run
+
+Check:
+
+- `AGENT_MARKET_CLOSE_LIQUIDATION_ENABLED=true`
+- local time in `AGENT_TIMEZONE` is from `15:20:00` to before `15:30:00`
+- order tools enabled
+- trading enabled
+- placement mode `SELL` or `ALL`
+
+If it runs, the normal strategy workflow is skipped for that cycle.
