@@ -15,6 +15,8 @@ public record StrategyDecision(
         TradingSignal signal,
         @Schema(description = "Human-readable explanation for the signal.", example = "Fast SMA crossed above slow SMA on the latest candle.")
         String reason,
+        @Schema(description = "Suggested BUY quantity. Present only when signal is BUY.")
+        QuantitySuggestion quantitySuggestion,
         @Schema(description = "Timestamp when the evaluation completed.", example = "2026-05-16T10:15:30Z")
         Instant evaluatedAt
 ) {
@@ -29,6 +31,10 @@ public record StrategyDecision(
      * Factory that stamps the current instant automatically.
      */
     public static StrategyDecision of(String strategyName, TradingSignal signal, String reason) {
-        return new StrategyDecision(strategyName, signal, reason, Instant.now());
+        return new StrategyDecision(strategyName, signal, reason, null, Instant.now());
+    }
+
+    public StrategyDecision withQuantitySuggestion(QuantitySuggestion quantitySuggestion) {
+        return new StrategyDecision(strategyName, signal, reason, quantitySuggestion, evaluatedAt);
     }
 }

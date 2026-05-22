@@ -4,6 +4,8 @@ import com.algotrading.app.market.MarketDataPort;
 import com.algotrading.app.model.Candle;
 import com.algotrading.app.model.HistoricalDataRequest;
 import com.algotrading.app.model.StrategyDecision;
+import com.algotrading.app.model.TradingSignal;
+import com.algotrading.app.strategy.PositionSizingStrategy;
 import com.algotrading.app.strategy.StrategyRegistry;
 import com.algotrading.app.strategy.TechnicalStrategy;
 import org.slf4j.Logger;
@@ -22,11 +24,14 @@ public class TradingStrategyService {
 
     private final StrategyRegistry strategyRegistry;
     private final MarketDataPort marketDataPort;
+    private final PositionSizingStrategy positionSizingStrategy;
 
     public TradingStrategyService(StrategyRegistry strategyRegistry,
-                                  MarketDataPort marketDataPort) {
+                                  MarketDataPort marketDataPort,
+                                  PositionSizingStrategy positionSizingStrategy) {
         this.strategyRegistry = strategyRegistry;
         this.marketDataPort   = marketDataPort;
+        this.positionSizingStrategy = positionSizingStrategy;
     }
 
     /**
@@ -50,11 +55,14 @@ public class TradingStrategyService {
         log.debug("Fetched candles count={} strategy='{}'",
                 candles.size(), strategyName);
 
-        StrategyDecision decision = strategy.evaluate(candles);
-        log.info("Strategy evaluated strategy='{}' signal={} candles={}",
+        StrategyDecision decision = withBuyQuantitySuggestion(strategy.evaluate(candles), candles);
+        log.info("Strategy evaluated strategy='{}' signal={} candles={} suggestedQuantity={}",
                 strategyName,
                 decision.signal(),
-                candles.size());
+                candles.size(),
+                decision.quantitySuggestion() != null
+                        ? decision.quantitySuggestion().suggestedQuantity()
+                        : null);
         return decision;
     }
 
@@ -98,10 +106,16 @@ public class TradingStrategyService {
     private StrategyDecision evaluateFetchedCandles(String strategyName, List<Candle> candles) {
         log.debug("Handing fetched candles to strategy='{}'", strategyName);
         try {
-            StrategyDecision decision = strategyRegistry.get(strategyName).evaluate(candles);
-            log.info("Strategy evaluated strategy='{}' signal={}",
+            StrategyDecision decision = withBuyQuantitySuggestion(
+                    strategyRegistry.get(strategyName).evaluate(candles),
+                    candles
+            );
+            log.info("Strategy evaluated strategy='{}' signal={} suggestedQuantity={}",
                     strategyName,
-                    decision.signal());
+                    decision.signal(),
+                    decision.quantitySuggestion() != null
+                            ? decision.quantitySuggestion().suggestedQuantity()
+                            : null);
             return decision;
         } catch (RuntimeException ex) {
             log.error("Strategy evaluation failed strategy='{}' candles={} error='{}'",
@@ -111,5 +125,12 @@ public class TradingStrategyService {
                     ex);
             throw ex;
         }
+    }
+
+    private StrategyDecision withBuyQuantitySuggestion(StrategyDecision decision, List<Candle> candles) {
+        if (decision.signal() != TradingSignal.BUY) {
+            return decision;
+        }
+        return decision.withQuantitySuggestion(positionSizingStrategy.suggestBuyQuantity(candles));
     }
 }

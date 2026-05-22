@@ -3,8 +3,10 @@ package com.algotrading.app.service;
 import com.algotrading.app.market.MarketDataPort;
 import com.algotrading.app.model.Candle;
 import com.algotrading.app.model.HistoricalDataRequest;
+import com.algotrading.app.model.QuantitySuggestion;
 import com.algotrading.app.model.StrategyDecision;
 import com.algotrading.app.model.TradingSignal;
+import com.algotrading.app.strategy.PositionSizingStrategy;
 import com.algotrading.app.strategy.StrategyRegistry;
 import com.algotrading.app.strategy.TechnicalStrategy;
 import com.algotrading.app.util.CandleTestFactory;
@@ -42,6 +44,8 @@ class TradingStrategyServiceTest {
         assertThat(result).isNotNull();
         assertThat(result.signal()).isEqualTo(TradingSignal.BUY);
         assertThat(result.strategyName()).isEqualTo("MOCK_STRATEGY");
+        assertThat(result.quantitySuggestion()).isNotNull();
+        assertThat(result.quantitySuggestion().suggestedQuantity()).isEqualTo(42);
         assertThat(strategy.evaluatedCandles()).isSameAs(candles);
         assertThat(marketDataPort.fetchCount()).isEqualTo(1);
     }
@@ -77,7 +81,13 @@ class TradingStrategyServiceTest {
         List<StrategyDecision> decisions = service.evaluateAll(SAMPLE_REQUEST);
 
         assertThat(decisions)
-                .containsExactlyInAnyOrder(firstDecision, secondDecision);
+                .extracting(StrategyDecision::strategyName)
+                .containsExactlyInAnyOrder("SMA_CROSSOVER", "RSI_MEAN_REVERSION");
+        assertThat(decisions)
+                .filteredOn(decision -> decision.signal() == TradingSignal.BUY)
+                .singleElement()
+                .extracting(StrategyDecision::quantitySuggestion)
+                .isNotNull();
         assertThat(marketDataPort.fetchCount()).isEqualTo(1);
         assertThat(firstStrategy.evaluatedCandles()).isSameAs(candles);
         assertThat(secondStrategy.evaluatedCandles()).isSameAs(candles);
@@ -102,7 +112,31 @@ class TradingStrategyServiceTest {
 
     private static TradingStrategyService service(MarketDataPort marketDataPort,
                                                   TechnicalStrategy... strategies) {
-        return new TradingStrategyService(new StrategyRegistry(List.of(strategies)), marketDataPort);
+        return new TradingStrategyService(
+                new StrategyRegistry(List.of(strategies)),
+                marketDataPort,
+                new FakePositionSizingStrategy()
+        );
+    }
+
+    private static final class FakePositionSizingStrategy implements PositionSizingStrategy {
+        @Override
+        public QuantitySuggestion suggestBuyQuantity(List<Candle> candles) {
+            return new QuantitySuggestion(
+                    42,
+                    "TEST",
+                    100.0,
+                    2.0,
+                    1.5,
+                    3.0,
+                    100000.0,
+                    0.01,
+                    1000.0,
+                    333,
+                    200,
+                    "test quantity"
+            );
+        }
     }
 
     private static final class FakeMarketDataPort implements MarketDataPort {
