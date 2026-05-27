@@ -41,6 +41,9 @@ def create_app(agent_scheduler: AgentScheduler) -> FastAPI:
             "cron_minutes": agent_scheduler.config.cron_minutes,
             "trading_enabled": agent_scheduler.config.allow_trading,
             "order_placement_mode": agent_scheduler.config.order_placement_mode,
+            "use_strategy_quantity_recommendation": (
+                agent_scheduler.config.use_strategy_quantity_recommendation
+            ),
             "market_close_liquidation_enabled": agent_scheduler.config.market_close_liquidation_enabled,
             "next_run_at": job.next_run_time.isoformat() if job and job.next_run_time else None,
         }

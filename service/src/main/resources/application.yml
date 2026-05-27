@@ -26,6 +26,8 @@ instrument:
   require-expiry-for-lookup: ${INSTRUMENT_REQUIRE_EXPIRY_FOR_LOOKUP:false}
 
 trading:
+  market-hours:
+    close-time: ${TRADING_MARKET_CLOSE_TIME:15:30}
   position-sizing:
     capital: ${TRADING_POSITION_SIZING_CAPITAL:500000}
     risk-percent: ${TRADING_POSITION_SIZING_RISK_PERCENT:0.01}

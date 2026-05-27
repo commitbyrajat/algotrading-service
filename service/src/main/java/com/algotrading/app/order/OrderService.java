@@ -46,24 +46,35 @@ public class OrderService {
     private final HoldingsService holdingsService;
     private final StringRedisTemplate redis;
     private final ObjectMapper objectMapper;
+    private final MarketHoursGuard marketHoursGuard;
     private final Object purchasedOrdersCacheLock = new Object();
 
     @Autowired
     public OrderService(OrderPort orderPort,
                         HoldingsService holdingsService,
                         StringRedisTemplate redis,
-                        ObjectMapper objectMapper) {
+                        ObjectMapper objectMapper,
+                        MarketHoursGuard marketHoursGuard) {
         this.orderPort = orderPort;
         this.holdingsService = holdingsService;
         this.redis = redis;
         this.objectMapper = objectMapper;
+        this.marketHoursGuard = marketHoursGuard;
+    }
+
+    OrderService(OrderPort orderPort,
+                 HoldingsService holdingsService,
+                 StringRedisTemplate redis,
+                 ObjectMapper objectMapper) {
+        this(orderPort, holdingsService, redis, objectMapper, MarketHoursGuard.alwaysOpen());
     }
 
     OrderService(OrderPort orderPort) {
-        this.orderPort = orderPort;
-        this.holdingsService = null;
-        this.redis = null;
-        this.objectMapper = null;
+        this(orderPort, null, null, null, MarketHoursGuard.alwaysOpen());
+    }
+
+    OrderService(OrderPort orderPort, MarketHoursGuard marketHoursGuard) {
+        this(orderPort, null, null, null, marketHoursGuard);
     }
 
     /**
@@ -75,6 +86,7 @@ public class OrderService {
     public PlacedOrderResponse placeOrder(OrderRequest request) {
         log.info("OrderService.placeOrder: {} {} qty={}",
                 request.transactionType(), request.tradingSymbol(), request.quantity());
+        marketHoursGuard.ensureMarketOpenForOrders();
         validateSellOrderAgainstPurchasedOrderCache(request);
         PlacedOrderResponse response = orderPort.placeOrder(request);
         evictPurchasedOrdersCacheAfterSuccessfulOrder(request);
@@ -92,6 +104,7 @@ public class OrderService {
         OrderRequest sellOrder = request.toSellOrderRequest();
         log.info("OrderService.exitPosition: SELL {} qty={}",
                 sellOrder.tradingSymbol(), sellOrder.quantity());
+        marketHoursGuard.ensureMarketOpenForOrders();
         validateSellOrderAgainstPurchasedOrderCache(sellOrder);
         PlacedOrderResponse response = orderPort.placeOrder(sellOrder);
         evictPurchasedOrdersCacheForSymbol(sellOrder.tradingSymbol());

@@ -10,6 +10,9 @@ def run_prompt(config: AgentConfig, prompt: str | None = None) -> str:
     execution_mode = "enabled" if config.allow_trading else "disabled"
     order_tools_mode = "enabled" if config.enable_order_tools else "disabled"
     placement_mode = config.order_placement_mode
+    quantity_recommendation_mode = (
+        "enabled" if config.use_strategy_quantity_recommendation else "disabled"
+    )
     return f"""
 {base_prompt}
 
@@ -55,14 +58,19 @@ Order execution policy for this run:
 - Use the local submit_order_json tool for BUY and SELL order placement. Do not use the OpenAPI MCP POST /api/v1/orders or POST /api/v1/orders/exit tools for mutating order placement because they may send form-urlencoded data.
 - submit_order_json sends an application/json request body directly to the algo-trading service and enforces AGENT_ENABLE_ORDER_TOOLS, AGENT_ALLOW_TRADING, AGENT_ORDER_PLACEMENT_MODE, exchange, and max_orders_per_cycle.
 - If trading execution is enabled, submit at most {config.max_orders_per_cycle} total orders in this cycle.
-- Use quantity={config.order_quantity}, orderType={config.order_type}, product={config.order_product}, price=0, triggerPrice=0.
+- Default order parameters are quantity={config.order_quantity}, orderType={config.order_type}, product={config.order_product}, price=0, triggerPrice=0.
+- Strategy quantity recommendation mode is {quantity_recommendation_mode} via AGENT_USE_STRATEGY_QUANTITY_RECOMMENDATION.
+- When strategy quantity recommendation mode is enabled, if a BUY strategy evaluation response contains a non-null quantitySuggestion.suggestedQuantity or suggestedQuantity value, that strategy-recommended quantity is mandatory. Pass it as submit_order_json suggested_quantity and use it as the BUY quantity instead of the default quantity.
+- When strategy quantity recommendation mode is enabled, if a BUY strategy response contains a non-null suggestedQuantity that is 0 or negative, do not place the BUY order; report the blocker as strategy suggestedQuantity not positive.
+- When strategy quantity recommendation mode is enabled and multiple BUY strategy decisions exist for one instrument with non-null suggestedQuantity values, use the smallest positive suggestedQuantity as the BUY order quantity and mention the source values in the final report.
+- When strategy quantity recommendation mode is disabled, ignore all strategy suggestedQuantity values for order sizing and use quantity={config.order_quantity}.
 - Before deciding or placing any BUY or SELL, call the MCP tools to fetch both existing orders/purchased orders and the holdings list. Use orders to identify duplicates/exposure and holdings to identify sellable delivery positions.
 - Submit BUY orders only when order placement mode is BUY or ALL, and only after: instrument lookup succeeded, strategy result explicitly returns BUY, holdings lookup succeeded, and existing-order lookup shows there is no already completed/pending BUY exposure for the same tradingSymbol and exchange.
 - Submit SELL/exit orders only when order placement mode is SELL or ALL, and only after: instrument lookup succeeded, strategy result explicitly returns SELL, holdings lookup succeeded, and existing-order lookup plus holdings confirms an existing completed BUY/position or sellable holding for that tradingSymbol and exchange.
 - If all required conditions for a BUY or SELL are satisfied, you must call submit_order_json immediately. Do not only report that the order would be submitted.
 - If a strategy evaluation response contains multiple strategy decisions for one instrument, treat an instrument as BUY-actionable when at least one decision is BUY and no decision is SELL. Treat it as SELL-actionable when at least one decision is SELL and no decision is BUY. If BUY and SELL both appear for the same instrument, mark HOLD/conflict and do not place an order.
 - For every BUY or SELL decision that does not result in submit_order_json, include the exact blocker in the final report: disabled order tools, trading disabled, side not allowed by order placement mode, duplicate exposure, holdings lookup failed, no sellable holding, max orders reached, conflicting strategy signals, unresolved instrument, or tool/API failure.
-- For BUY, call submit_order_json with transaction_type=BUY, trading_symbol from instrument lookup, exchange={config.instrument_exchange}, quantity={config.order_quantity}, order_type={config.order_type}, product={config.order_product}, price=0, trigger_price=0.
+- For BUY, call submit_order_json with transaction_type=BUY, trading_symbol from instrument lookup, exchange={config.instrument_exchange}, quantity={config.order_quantity}, suggested_quantity set to the selected strategy suggestedQuantity only when strategy quantity recommendation mode is enabled and a non-null recommendation is present, order_type={config.order_type}, product={config.order_product}, price=0, trigger_price=0.
 - For SELL, call submit_order_json with transaction_type=SELL, trading_symbol from instrument lookup, exchange={config.instrument_exchange}, quantity={config.order_quantity}, order_type={config.order_type}, product={config.order_product}, price=0, trigger_price=0.
 - HOLD means do not place any order. Use HOLD for unresolved instruments, failed strategy evaluations, duplicated existing exposure, SELL signals without holdings, and strategy results that are not explicit BUY or SELL.
 - Use exchange={config.instrument_exchange} for all order decisions and order payloads.
@@ -111,7 +119,7 @@ Primary responsibilities:
 - Never call the strategy evaluation tool with unregistered names or friendly aliases. The strategy path/name must be one of the exact registered names returned by the strategy-listing tool, except for the reserved aggregate name ALL.
 - Treat ALL as a service-supported aggregate evaluation mode, not a registered strategy. Do not warn that ALL is unregistered, and do not replace one name=ALL call with multiple individual strategy calls.
 - If an identifier does not resolve on exchange={config.instrument_exchange}, report it as HOLD/unresolved and continue with resolved instruments. Do not retry on BSE or any other exchange.
-- BUY execution: use the local submit_order_json tool with transaction_type=BUY only when order tools and trading execution are both enabled, order placement mode is BUY or ALL, holdings lookup succeeded, and existing-order lookup confirms no duplicate exposure.
+- BUY execution: use the local submit_order_json tool with transaction_type=BUY only when order tools and trading execution are both enabled, order placement mode is BUY or ALL, holdings lookup succeeded, existing-order lookup confirms no duplicate exposure, and any non-null strategy suggestedQuantity has been applied as the BUY quantity when AGENT_USE_STRATEGY_QUANTITY_RECOMMENDATION=true.
 - SELL execution: use the local submit_order_json tool with transaction_type=SELL only when order tools and trading execution are both enabled, order placement mode is SELL or ALL, holdings lookup succeeded, and existing-order lookup plus holdings confirms a sellable completed BUY/position or delivery holding.
 - A BUY/SELL that satisfies the policy is a required action, not a recommendation. Call submit_order_json before the final report, then include the tool response in submitted orders.
 - If any BUY/SELL is skipped, the final report must state the exact blocker. Do not silently omit order placement.

@@ -58,7 +58,9 @@ The agent uses MCP tools for service inspection and strategy workflows. For muta
 The project has two independent safety layers:
 
 - The Java service never places orders from strategy evaluation. Orders require explicit order endpoints.
+- The Java service blocks order placement on weekends and at or after the configured weekday market close time, `TRADING_MARKET_CLOSE_TIME` defaulting to `15:30` in `Asia/Kolkata`.
 - The agent never places orders unless `AGENT_ENABLE_ORDER_TOOLS=true`, `AGENT_ALLOW_TRADING=true`, and `AGENT_ORDER_PLACEMENT_MODE` permits the side.
+- The agent can either use service-provided BUY `suggestedQuantity` values or the fixed `AGENT_ORDER_QUANTITY`, controlled by `AGENT_USE_STRATEGY_QUANTITY_RECOMMENDATION`.
 
 SELL orders are additionally guarded by the Java service using purchased-order and holdings state. See [service/README.md](service/README.md) and [agent/README.md](agent/README.md) for the detailed rules.
 
@@ -85,6 +87,17 @@ export OPENAI_API_KEY=...
 ```
 
 Most service and agent settings have defaults in `docker-compose.yml`, `service/src/main/resources/application.yml`, and the agent config. Keep secrets in your shell or a local `.env` file that is not committed.
+
+Common operational toggles:
+
+| Variable | Default | Applies to | Purpose |
+|---|---:|---|---|
+| `TRADING_MARKET_CLOSE_TIME` | `15:30` | Service | Blocks service order placement at or after this IST weekday time |
+| `AGENT_ENABLE_ORDER_TOOLS` | `false` | Agent | Allows order, holdings, purchased-order, and order-status tools |
+| `AGENT_ALLOW_TRADING` | `false` | Agent | Allows mutating order placement when other guards also pass |
+| `AGENT_ORDER_PLACEMENT_MODE` | `NONE` | Agent | Permitted order side: `NONE`, `BUY`, `SELL`, or `ALL` |
+| `AGENT_USE_STRATEGY_QUANTITY_RECOMMENDATION` | `true` | Agent | Uses non-null strategy BUY quantity recommendations instead of fixed quantity |
+| `AGENT_ORDER_QUANTITY` | `1` | Agent | Fixed fallback quantity when strategy quantity recommendations are disabled or absent |
 
 ## Quick Start: Full Stack
 

@@ -53,7 +53,7 @@ class TradingMcpAgent:
         from_date, to_date = self.config.candle_date_range()
         log_prefix = "cycle_id=%s " % cycle_id if cycle_id else ""
         logger.info(
-            "%sstarting agent cycle model=%s mcp_url=%s from=%s to=%s interval=%s order_tools=%s trading=%s order_placement_mode=%s max_orders=%s market_close_liquidation=%s prompt_chars=%s",
+            "%sstarting agent cycle model=%s mcp_url=%s from=%s to=%s interval=%s order_tools=%s trading=%s order_placement_mode=%s use_strategy_quantity_recommendation=%s max_orders=%s market_close_liquidation=%s prompt_chars=%s",
             log_prefix,
             self.config.model,
             self.config.mcp_url,
@@ -63,6 +63,7 @@ class TradingMcpAgent:
             self.config.enable_order_tools,
             self.config.allow_trading,
             self.config.order_placement_mode,
+            self.config.use_strategy_quantity_recommendation,
             self.config.max_orders_per_cycle,
             self.config.market_close_liquidation_enabled,
             len(prompt_text),
@@ -93,6 +94,7 @@ class TradingMcpAgent:
             exchange: str,
             price: float = 0,
             trigger_price: float = 0,
+            suggested_quantity: int | None = None,
         ) -> dict[str, Any]:
             """
             Submit one JSON order to the application.
@@ -100,12 +102,15 @@ class TradingMcpAgent:
             Args:
                 trading_symbol: Broker trading symbol returned by instrument lookup.
                 transaction_type: BUY places a buy order; SELL exits a position.
-                quantity: Number of shares or lots.
+                quantity: Number of shares or lots. For BUY, this is overridden by
+                    suggested_quantity when strategy quantity recommendation mode is enabled.
                 order_type: Kite order type such as MARKET, LIMIT, SL, or SL-M.
                 product: Kite product such as CNC, MIS, or NRML.
                 exchange: Exchange segment, normally NSE.
                 price: Limit price, or 0 for MARKET.
                 trigger_price: Trigger price for stop-loss order types, otherwise 0.
+                suggested_quantity: Strategy response suggestedQuantity for BUY decisions,
+                    when present.
             """
             payload, path = self._build_order_payload(
                 trading_symbol=trading_symbol,
@@ -116,6 +121,7 @@ class TradingMcpAgent:
                 exchange=exchange,
                 price=price,
                 trigger_price=trigger_price,
+                suggested_quantity=suggested_quantity,
             )
             url = f"{self.config.app_base_url}{path}"
             return await asyncio.to_thread(self._post_json, url, payload)
@@ -212,6 +218,7 @@ class TradingMcpAgent:
         exchange: str,
         price: float,
         trigger_price: float,
+        suggested_quantity: int | None = None,
     ) -> tuple[dict[str, Any], str]:
         side = transaction_type.strip().upper()
         placement_mode = self.config.order_placement_mode
@@ -236,7 +243,33 @@ class TradingMcpAgent:
             raise ValueError(
                 f"exchange must be {self.config.instrument_exchange}; got {exchange}"
             )
-        if quantity <= 0:
+        effective_quantity = quantity
+        if (
+            side == "BUY"
+            and self.config.use_strategy_quantity_recommendation
+            and suggested_quantity is not None
+        ):
+            if suggested_quantity <= 0:
+                raise ValueError(
+                    f"strategy suggestedQuantity must be > 0 for BUY orders; got {suggested_quantity}"
+                )
+            effective_quantity = suggested_quantity
+            if quantity != suggested_quantity:
+                logger.info(
+                    "using strategy suggestedQuantity for BUY order trading_symbol=%s configured_quantity=%s suggested_quantity=%s",
+                    trading_symbol,
+                    quantity,
+                    suggested_quantity,
+                )
+        elif side == "BUY" and suggested_quantity is not None:
+            logger.info(
+                "ignoring strategy suggestedQuantity for BUY order because AGENT_USE_STRATEGY_QUANTITY_RECOMMENDATION=false trading_symbol=%s configured_quantity=%s suggested_quantity=%s",
+                trading_symbol,
+                quantity,
+                suggested_quantity,
+            )
+
+        if effective_quantity <= 0:
             raise ValueError("quantity must be > 0")
         if price < 0 or trigger_price < 0:
             raise ValueError("price and trigger_price must be >= 0")
@@ -244,7 +277,7 @@ class TradingMcpAgent:
         base_payload: dict[str, Any] = {
             "tradingSymbol": trading_symbol.strip().upper(),
             "exchange": exchange.strip().upper(),
-            "quantity": quantity,
+            "quantity": effective_quantity,
             "orderType": order_type.strip().upper(),
             "product": product.strip().upper(),
             "price": price,

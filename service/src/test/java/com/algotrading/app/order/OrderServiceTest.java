@@ -11,7 +11,11 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import tools.jackson.databind.ObjectMapper;
 
+import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
+import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -196,8 +200,107 @@ class OrderServiceTest {
         assertThat(holdingsService.lookupTradingSymbol).isEqualTo("JUSTDIAL");
     }
 
+    @Test
+    void placeOrder_allowsWeekdayOrderBeforeMarketClose() {
+        service = new OrderService(orderPort, marketHoursGuardAt("2026-05-25T09:59:00Z"));
+        OrderRequest request = buyOrder();
+
+        service.placeOrder(request);
+
+        assertThat(orderPort.lastRequest).isEqualTo(request);
+    }
+
+    @Test
+    void placeOrder_rejectsWeekdayOrderAtMarketClose() {
+        service = new OrderService(orderPort, marketHoursGuardAt("2026-05-25T10:00:00Z"));
+        OrderRequest request = buyOrder();
+
+        assertThatThrownBy(() -> service.placeOrder(request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("market is closed at or after 15:30");
+        assertThat(orderPort.lastRequest).isNull();
+    }
+
+    @Test
+    void placeOrder_rejectsWeekdayOrderAfterMarketClose() {
+        service = new OrderService(orderPort, marketHoursGuardAt("2026-05-25T10:01:00Z"));
+        OrderRequest request = buyOrder();
+
+        assertThatThrownBy(() -> service.placeOrder(request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("market is closed at or after 15:30");
+        assertThat(orderPort.lastRequest).isNull();
+    }
+
+    @Test
+    void placeOrder_usesConfiguredMarketCloseTime() {
+        service = new OrderService(
+                orderPort,
+                marketHoursGuardAt("2026-05-25T10:59:00Z", LocalTime.of(16, 30))
+        );
+        OrderRequest request = buyOrder();
+
+        service.placeOrder(request);
+
+        assertThat(orderPort.lastRequest).isEqualTo(request);
+    }
+
+    @Test
+    void placeOrder_rejectsWeekendOrderForWholeDay() {
+        service = new OrderService(orderPort, marketHoursGuardAt("2026-05-23T05:30:00Z"));
+        OrderRequest request = buyOrder();
+
+        assertThatThrownBy(() -> service.placeOrder(request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("market is closed on weekends");
+        assertThat(orderPort.lastRequest).isNull();
+    }
+
+    @Test
+    void exitPosition_rejectsWeekendOrderBeforeCallingPort() {
+        service = new OrderService(orderPort, marketHoursGuardAt("2026-05-24T05:30:00Z"));
+        ExitOrderRequest request = new ExitOrderRequest(
+                "INFY",
+                "NSE",
+                5,
+                "MARKET",
+                "CNC",
+                null,
+                null
+        );
+
+        assertThatThrownBy(() -> service.exitPosition(request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("market is closed on weekends");
+        assertThat(orderPort.lastRequest).isNull();
+    }
+
     private StringRedisTemplate redisWithoutPurchasedOrders() {
         return new FakeStringRedisTemplate();
+    }
+
+    private OrderRequest buyOrder() {
+        return new OrderRequest(
+                "INFY",
+                "NSE",
+                "BUY",
+                5,
+                "MARKET",
+                "CNC",
+                null,
+                null
+        );
+    }
+
+    private MarketHoursGuard marketHoursGuardAt(String instant) {
+        return marketHoursGuardAt(instant, MarketHoursGuard.DEFAULT_MARKET_CLOSE_TIME);
+    }
+
+    private MarketHoursGuard marketHoursGuardAt(String instant, LocalTime marketCloseTime) {
+        return new MarketHoursGuard(Clock.fixed(
+                Instant.parse(instant),
+                ZoneId.of("Asia/Kolkata")
+        ), marketCloseTime);
     }
 
     private HoldingResponse sampleHolding(String tradingSymbol, int quantity, int t1Quantity, int usedQuantity) {

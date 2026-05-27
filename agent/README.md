@@ -88,7 +88,8 @@ Order settings:
 | `AGENT_ENABLE_ORDER_TOOLS` | `false` | Allows order/holdings inspection tools when true |
 | `AGENT_ALLOW_TRADING` | `false` | Allows mutating trading only when true |
 | `AGENT_ORDER_PLACEMENT_MODE` | `NONE` | One of `NONE`, `BUY`, `SELL`, `ALL` |
-| `AGENT_ORDER_QUANTITY` | `1` | Quantity used for normal strategy-driven orders |
+| `AGENT_ORDER_QUANTITY` | `1` | Fixed fallback quantity for normal strategy-driven orders |
+| `AGENT_USE_STRATEGY_QUANTITY_RECOMMENDATION` | `true` | When true, BUY orders use non-null strategy `suggestedQuantity`; when false, BUY orders use `AGENT_ORDER_QUANTITY` |
 | `AGENT_ORDER_PRODUCT` | `CNC` | Kite product for normal strategy-driven orders |
 | `AGENT_ORDER_TYPE` | `MARKET` | Kite order type for normal strategy-driven orders |
 | `AGENT_MAX_ORDERS_PER_CYCLE` | `2` | Maximum normal strategy-driven order submissions per cycle |
@@ -244,7 +245,7 @@ Scheduler status:
 curl http://localhost:8090/status
 ```
 
-Status returns the model, MCP URL, app URL, cron expression, trading flag, order placement mode, market-close liquidation flag, and next scheduled run time.
+Status returns the model, MCP URL, app URL, cron expression, trading flag, order placement mode, strategy quantity recommendation mode, market-close liquidation flag, and next scheduled run time.
 
 Manual run with the configured prompt:
 
@@ -300,6 +301,7 @@ export AGENT_ENABLE_ORDER_TOOLS=true
 export AGENT_ALLOW_TRADING=true
 export AGENT_ORDER_PLACEMENT_MODE=ALL
 export AGENT_ORDER_QUANTITY=1
+export AGENT_USE_STRATEGY_QUANTITY_RECOMMENDATION=true
 export AGENT_ORDER_PRODUCT=CNC
 export AGENT_ORDER_TYPE=MARKET
 export AGENT_MAX_ORDERS_PER_CYCLE=2
@@ -317,6 +319,8 @@ Placement requires all of these to pass:
 - max orders per cycle has not been reached
 
 `AGENT_ALLOW_TRADING=true` alone is not enough. `AGENT_ORDER_PLACEMENT_MODE=NONE` blocks placement.
+
+BUY quantity selection is controlled separately. With `AGENT_USE_STRATEGY_QUANTITY_RECOMMENDATION=true`, a non-null strategy `suggestedQuantity` must be used. With it set to `false`, BUY orders use `AGENT_ORDER_QUANTITY`.
 
 ## Local Order Placement Tool
 
@@ -354,6 +358,12 @@ The local tool enforces:
 - price and trigger price are non-negative
 - normal per-cycle max order count
 
+For BUY orders, quantity selection depends on `AGENT_USE_STRATEGY_QUANTITY_RECOMMENDATION`:
+
+- `true`: if the strategy response includes a non-null `quantitySuggestion.suggestedQuantity` or `suggestedQuantity`, the agent passes that value to `submit_order_json` and the local tool uses it as the submitted quantity.
+- `false`: strategy quantity recommendations are ignored and the submitted quantity remains `AGENT_ORDER_QUANTITY`.
+- A non-positive strategy recommendation blocks the BUY only when recommendation mode is enabled.
+
 The Java service still performs its own order validation, including SELL sellability checks against purchased orders and holdings.
 
 ## BUY and SELL Decision Rules
@@ -362,6 +372,7 @@ BUY:
 
 - Instrument must resolve on the configured exchange.
 - Strategy result must be explicit `BUY`.
+- If `AGENT_USE_STRATEGY_QUANTITY_RECOMMENDATION=true`, any non-null strategy `suggestedQuantity` must be used for the BUY quantity.
 - Holdings lookup must succeed.
 - Existing-order lookup must show no duplicate completed or pending BUY exposure.
 - Placement mode must be `BUY` or `ALL`.
@@ -449,6 +460,7 @@ Useful log fields:
 - order tool mode
 - trading mode
 - order placement mode
+- strategy quantity recommendation mode
 - max orders
 - market-close liquidation flag
 - elapsed seconds

@@ -15,6 +15,7 @@ This README covers only the Java service module. The Python agent, MCP server, a
 - Holdings lookup with Redis cache.
 - Purchased-order lookup with Redis cache.
 - Explicit BUY and SELL order placement.
+- Weekday market-close and weekend order-placement guard.
 - SELL guard that checks purchased orders and holdings before submitting exit orders.
 
 Strategy evaluation and order placement are intentionally separate. A `BUY` or `SELL` strategy signal never places an order by itself; a caller must explicitly call the order endpoint.
@@ -66,6 +67,7 @@ Configuration is read from `application.yml`, with environment-variable override
 | `SPRING_DATA_REDIS_HOST` | `localhost` | Redis host |
 | `SPRING_DATA_REDIS_PORT` | `6379` | Redis port |
 | `INSTRUMENT_REQUIRE_EXPIRY_FOR_LOOKUP` | `false` | Require expiry when lookup can match derivative instruments |
+| `TRADING_MARKET_CLOSE_TIME` | `15:30` | Market close time in `Asia/Kolkata`; order placement is blocked at or after this time on weekdays |
 | `TRADING_POSITION_SIZING_CAPITAL` | `500000` | Capital base used for ATR position sizing |
 | `TRADING_POSITION_SIZING_RISK_PERCENT` | `0.01` | Fraction of capital risked per BUY |
 | `TRADING_POSITION_SIZING_ATR_PERIOD` | `14` | ATR lookback period |
@@ -183,7 +185,7 @@ curl "http://localhost:8080/api/v1/instruments/lookup?exchange=NSE&tradingSymbol
 | Method | Path | Purpose |
 |---|---|---|
 | `GET` | `/api/v1/strategies` | List registered strategy names |
-| `GET` | `/api/v1/strategies/{name}/evaluate` | Evaluate one strategy over historical candles |
+| `GET` | `/api/v1/strategies/{name}/evaluate` | Evaluate one strategy, or `ALL`, over historical candles |
 
 Example:
 
@@ -199,7 +201,7 @@ Registered strategies include:
 - `RSI_MEAN_REVERSION`
 - `GAINZ_ALPHA_V2`
 
-BUY strategy results include an ATR-based `quantitySuggestion`.
+Use `ALL` as the strategy name to evaluate every registered strategy with one candle fetch. BUY strategy results include an ATR-based `quantitySuggestion`; HOLD and SELL results leave `quantitySuggestion` null.
 
 ### Holdings
 
@@ -267,6 +269,8 @@ Order placement is explicit and guarded:
 - Strategy evaluation never auto-submits orders.
 - `POST /api/v1/orders` is the only generic order mutation endpoint.
 - `/api/v1/orders/exit` and `/api/v1/orders/sell` always submit `SELL`.
+- Orders are rejected on Saturdays and Sundays.
+- On weekdays, orders are rejected at or after `trading.market-hours.close-time`, default `15:30` in `Asia/Kolkata`.
 - After a successful `BUY`, purchased-order cache is evicted.
 - After a successful `SELL`, the symbol-level purchased-order and holdings caches are evicted.
 - SELL validation checks sellable quantity before calling Kite.
@@ -313,6 +317,8 @@ These settings are externalized under:
 
 ```yaml
 trading:
+  market-hours:
+    close-time: "15:30"
   position-sizing:
     capital: 500000
     risk-percent: 0.01
@@ -320,6 +326,8 @@ trading:
     atr-multiplier: 1.5
     max-portfolio-exposure-percent: 0.20
 ```
+
+`trading.market-hours.close-time` is also exposed as `TRADING_MARKET_CLOSE_TIME` for Docker and shell configuration.
 
 ## Testing
 
@@ -358,6 +366,15 @@ curl "http://localhost:8080/api/v1/holdings?tradingSymbol=SYMBOL"
 ```
 
 For holdings, the service counts `quantity + t1Quantity - usedQuantity`. If the running container still reports `holdingQuantity=0` for a positive `t1Quantity`, rebuild and recreate the `app` container so it uses the latest jar.
+
+### `Cannot place order because market is closed`
+
+The service blocks order placement on weekends and at or after `TRADING_MARKET_CLOSE_TIME` on weekdays. The default is `15:30` IST. To change it:
+
+```bash
+export TRADING_MARKET_CLOSE_TIME=15:45
+docker compose up --build --force-recreate app
+```
 
 ### Config changes are not visible in Docker
 

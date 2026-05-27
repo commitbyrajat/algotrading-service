@@ -36,6 +36,7 @@ class AgentConfig:
     intraday_lookback_days: int
     candle_interval: str
     order_quantity: int
+    use_strategy_quantity_recommendation: bool
     order_product: str
     order_type: str
     max_orders_per_cycle: int
@@ -63,6 +64,10 @@ class AgentConfig:
             intraday_lookback_days=int(os.getenv("AGENT_INTRADAY_LOOKBACK_DAYS", "1")),
             candle_interval=os.getenv("AGENT_CANDLE_INTERVAL", "day"),
             order_quantity=int(os.getenv("AGENT_ORDER_QUANTITY", "1")),
+            use_strategy_quantity_recommendation=_bool_env(
+                "AGENT_USE_STRATEGY_QUANTITY_RECOMMENDATION",
+                True,
+            ),
             order_product=os.getenv("AGENT_ORDER_PRODUCT", "CNC"),
             order_type=os.getenv("AGENT_ORDER_TYPE", "MARKET"),
             max_orders_per_cycle=int(os.getenv("AGENT_MAX_ORDERS_PER_CYCLE", "2")),
@@ -168,25 +173,25 @@ def default_instrument_universe() -> str:
           "IRCON",
           "GOLD360",
 #           "FINEORG",
-#           "YESBANK",
-#           "IDEA",
-#           "SUZLON",
+          "YESBANK",
+          "IDEA",
+          "SUZLON",
           "RVNL",
 #           "IREDA",
 #           "IRFC",
 #           "HUDCO",
 #           "NBCC",
 #           "HFCL",
-#           "RBLBANK",
-#           "IEX",
+          "RBLBANK",
+          "IEX",
 #           "IRCTC",
 #           "BHEL",
 #           "NATIONALUM",
 #           "INOXWIND",
-#           "TRIDENT",
-#           "JPPOWER",
-#           "HINDCOPPER",
-#           "VEDL",
+          "TRIDENT",
+          "JPPOWER",
+          "HINDCOPPER",
+          "VEDL",
 #           "ACE"
         ]
 #         ,[
