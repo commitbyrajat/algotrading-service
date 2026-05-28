@@ -27,6 +27,8 @@ instrument:
 
 trading:
   market-hours:
+    enabled: ${TRADING_MARKET_HOURS_ENABLED:true}
+    zone: ${TRADING_MARKET_ZONE:Asia/Kolkata}
     close-time: ${TRADING_MARKET_CLOSE_TIME:15:30}
   position-sizing:
     capital: ${TRADING_POSITION_SIZING_CAPITAL:500000}

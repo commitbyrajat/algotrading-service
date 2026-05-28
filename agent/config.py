@@ -3,6 +3,8 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
+from pathlib import Path
+from urllib.parse import urlsplit, urlunsplit
 from zoneinfo import ZoneInfo
 
 
@@ -20,6 +22,8 @@ def _bool_env(name: str, default: bool = False) -> bool:
 @dataclass(frozen=True)
 class AgentConfig:
     model: str
+    openai_api_key: str
+    openai_base_url: str
     mcp_url: str
     app_base_url: str
     cron_minutes: str
@@ -48,6 +52,8 @@ class AgentConfig:
     def from_env(cls) -> "AgentConfig":
         return cls(
             model=os.getenv("AGENT_MODEL", "openai-chat:gpt-4o-mini"),
+            openai_api_key=_required_env("OPENAI_API_KEY"),
+            openai_base_url=_required_url_env("OPENAI_BASE_URL"),
             mcp_url=os.getenv("MCP_ENDPOINT_URL", "http://localhost:3100/mcp"),
             app_base_url=os.getenv("AGENT_APP_BASE_URL", "http://localhost:8080").rstrip("/"),
             cron_minutes=os.getenv("AGENT_CRON_MINUTES", "*/5"),
@@ -155,6 +161,32 @@ def _date_env(name: str) -> date | None:
     if not value:
         return None
     return date.fromisoformat(value)
+
+
+def _required_env(name: str) -> str:
+    value = os.getenv(name)
+    if value is None or not value.strip():
+        raise ValueError(f"{name} must be set")
+    return value.strip()
+
+
+def _required_url_env(name: str) -> str:
+    return _docker_host_url(_required_env(name).rstrip("/"))
+
+
+def _docker_host_url(url: str) -> str:
+    parsed = urlsplit(url)
+    if not _running_in_docker() or parsed.hostname not in {"localhost", "127.0.0.1"}:
+        return url
+
+    netloc = "host.docker.internal"
+    if parsed.port is not None:
+        netloc = f"{netloc}:{parsed.port}"
+    return urlunsplit((parsed.scheme, netloc, parsed.path, parsed.query, parsed.fragment))
+
+
+def _running_in_docker() -> bool:
+    return Path("/.dockerenv").exists() or os.getenv("AGENT_RUNNING_IN_DOCKER") == "true"
 
 
 def _order_placement_mode_env(name: str) -> str:

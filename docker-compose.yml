@@ -102,9 +102,13 @@ services:
     volumes:
       - ./agent:/workspace/agent
       - uv_cache:/root/.cache/uv
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
-      AGENT_MODEL: ${AGENT_MODEL:-openai-chat:gpt-4o-mini}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-ollama}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-http://host.docker.internal:11434/v1}
+      AGENT_RUNNING_IN_DOCKER: "true"
+      AGENT_MODEL: ${AGENT_MODEL:-openai-chat:llama3.2}
       MCP_ENDPOINT_URL: http://openapi-mcp:3100/mcp
       AGENT_APP_BASE_URL: ${AGENT_APP_BASE_URL:-http://app:8080}
       AGENT_CRON_MINUTES: ${AGENT_CRON_MINUTES:-*/5}

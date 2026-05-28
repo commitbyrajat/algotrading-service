@@ -13,6 +13,8 @@ from zoneinfo import ZoneInfo
 
 from pydantic_ai import Agent
 from pydantic_ai.mcp import MCPServerStreamableHTTP
+from pydantic_ai.models.openai import OpenAIChatModel
+from pydantic_ai.providers.openai import OpenAIProvider
 
 from config import AgentConfig
 from prompts import run_prompt, system_prompt
@@ -37,11 +39,25 @@ class TradingMcpAgent:
         self._submitted_order_count = 0
         self._server = MCPServerStreamableHTTP(config.mcp_url)
         self._agent = Agent(
-            config.model,
+            self._model_from_config(config),
             system_prompt=system_prompt(config),
             toolsets=[self._server],
         )
         self._register_tools()
+
+    @staticmethod
+    def _model_from_config(config: AgentConfig) -> OpenAIChatModel:
+        model_name = config.model
+        for prefix in ("openai-chat:", "openai:"):
+            if model_name.startswith(prefix):
+                model_name = model_name.removeprefix(prefix)
+                break
+
+        provider = OpenAIProvider(
+            api_key=config.openai_api_key,
+            base_url=config.openai_base_url,
+        )
+        return OpenAIChatModel(model_name, provider=provider)
 
     async def run_once(self, prompt: str | None = None, cycle_id: str | None = None) -> str:
         self._submitted_order_count = 0

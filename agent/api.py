@@ -36,6 +36,7 @@ def create_app(agent_scheduler: AgentScheduler) -> FastAPI:
         return {
             "status": "running",
             "model": agent_scheduler.config.model,
+            "openai_base_url": agent_scheduler.config.openai_base_url,
             "mcp_url": agent_scheduler.config.mcp_url,
             "app_base_url": agent_scheduler.config.app_base_url,
             "cron_minutes": agent_scheduler.config.cron_minutes,

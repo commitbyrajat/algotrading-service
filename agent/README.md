@@ -48,13 +48,26 @@ Required:
 
 ```bash
 export OPENAI_API_KEY=...
+export OPENAI_BASE_URL=https://api.openai.com/v1
 ```
+
+For a host Ollama server exposed at `http://localhost:11434/v1`, Docker containers must use the host alias:
+
+```bash
+export OPENAI_API_KEY=ollama
+export OPENAI_BASE_URL=http://host.docker.internal:11434/v1
+export AGENT_MODEL=openai-chat:llama3.2
+```
+
+The Docker Compose agent also sets `AGENT_RUNNING_IN_DOCKER=true`, so a mistakenly supplied `OPENAI_BASE_URL=http://localhost:11434/v1` is normalized to `http://host.docker.internal:11434/v1` inside the container.
 
 Core runtime settings:
 
 | Variable | Default in code | Docker Compose default | Purpose |
 |---|---:|---:|---|
-| `AGENT_MODEL` | `openai-chat:gpt-4o-mini` | same | Pydantic AI model identifier |
+| `OPENAI_API_KEY` | required | `ollama` | OpenAI or OpenAI-compatible API key; Ollama ignores the value |
+| `OPENAI_BASE_URL` | required | `http://host.docker.internal:11434/v1` | OpenAI-compatible API base URL |
+| `AGENT_MODEL` | `openai-chat:gpt-4o-mini` | `openai-chat:llama3.2` | Pydantic AI model identifier |
 | `MCP_ENDPOINT_URL` | `http://localhost:3100/mcp` | `http://openapi-mcp:3100/mcp` | MCP endpoint URL |
 | `AGENT_APP_BASE_URL` | `http://localhost:8080` | `http://app:8080` | Java service base URL for direct JSON calls |
 | `AGENT_CRON_MINUTES` | `*/5` | same | APScheduler cron minute expression |
