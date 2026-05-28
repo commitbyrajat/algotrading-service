@@ -10,6 +10,7 @@
 - Use simple vector-style business graphics, not decorative illustrations.
 - Do not use real company logos.
 - Do not claim guaranteed profit or investment advice.
+- Speaker notes are written as Hinglish presenter scripts that can be read directly to investors.
 
 ## Sales Narrative
 
@@ -80,7 +81,11 @@ No trading terminal screenshot, no candlestick clutter, no robot mascot, no fina
 
 **Speaker note:**
 
-Introduce the product as Aldvra, pronounced ALD-vrah. The brand promise is controlled intelligence for modern trading workflows. Aldvra is not positioned as a black-box trading bot. It is an AI-assisted operating layer that helps businesses connect signals, account context, strategy evaluation, and execution controls into one safer workflow.
+Namaste. Aaj main introduce kar raha hoon Aldvra, pronounced ALD-vrah. Aldvra ka simple promise hai: controlled intelligence for modern trading workflows.
+
+Sochiye ek active trader ya ek trading business ke paas watchlist hai jisme RVNL, INFY, TCS, SBIN, YESBANK, SUZLON jaise instruments hain. Har instrument ka chart alag hai, signal alag hai, holdings alag hain, aur order decision ka risk alag hai. Aaj most tools sirf alert dete hain. Aldvra ka role alert dena nahi, balki signal se action tak ek guided workflow banana hai.
+
+Aldvra ko hum black-box trading bot ke roop mein position nahi kar rahe. Ye ek AI-assisted operating layer hai jo market signal, account context, strategy output, aur execution rules ko connect karta hai. Investor ke liye core message ye hai: trading automation ka future blind automation nahi hai; future controlled, explainable, and auditable AI workflow hai.
 
 ---
 
@@ -122,7 +127,11 @@ No busy trading terminal screenshot, no candlestick clutter, no stock photos, no
 
 **Speaker note:**
 
-Open with the customer pain. Traders already have charts, alerts, indicators, holdings, and order history. The problem is that these pieces are scattered, and the customer still has to decide what matters. For a business, this creates an opportunity: build a product that turns trading data into a guided workflow instead of adding one more alert.
+Is slide ka story customer pain se start hota hai. Ek normal active trader ko imagine kijiye. Morning mein woh RVNL, IRCON, YESBANK, SUZLON, INFY, TCS jaise stocks dekh raha hai. Uske paas charting app hai, broker app hai, alerts hain, holdings screen hai, aur order history bhi hai. Information bahut hai, lekin decision workflow missing hai.
+
+Example ke liye, RVNL par ek BUY-style signal aa sakta hai, lekin trader ko manually check karna padta hai: kya mere paas already position hai? Kya recent BUY order already execute hua hai? Kya market hours valid hain? Kya signal SMA crossover se aa raha hai ya RSI mean reversion se? Kya quantity sensible hai? Ye sab checks scattered systems mein hote hain.
+
+Business opportunity yahin hai. Customers ko ek aur noisy alert product nahi chahiye. Unhe ek assistant chahiye jo context collect kare, signal explain kare, risk boundaries check kare, aur bole: "Action consider karo" ya "Isko block karo" ya "Sirf report dekho." Aldvra isi gap ko solve karta hai.
 
 ---
 
@@ -169,7 +178,11 @@ No legal wall of text, no government logo, no fear-based imagery, no robot trade
 
 **Speaker note:**
 
-This is the market urgency slide. Broker APIs make it possible to connect orders, portfolios, and market data. AI makes it possible to reason across this context. At the same time, algorithmic trading needs stronger checks and balances. The pitch is that businesses should not wait to adopt AI, but they should adopt it through a controlled workflow model.
+Ye slide batata hai ki timing abhi kyun important hai. Broker APIs ki wajah se aaj application market data, portfolio, holdings, orders, aur instrument lookup ko connect kar sakti hai. Dusri taraf AI models context ko read karke explanation aur recommendation type output de sakte hain.
+
+Lekin trading mein sirf capability enough nahi hoti. Agar AI ne INFY ya SBIN par ek signal dekha aur bina check ke order place kar diya, to business risk bahut high ho jata hai. Regulatory environment bhi safer retail participation aur controlled algo workflows par focus kar raha hai. Isliye businesses ke liye question ye nahi hai ki AI use karna hai ya nahi. Question ye hai ki AI ko safe boundary ke andar kaise use karna hai.
+
+Aldvra ka pitch ye hai: AI adoption ko delay mat karo, lekin AI ko directly order engine mat banao. Use it as a supervised workflow layer. Pehle data connect karo, phir strategy evaluate karo, phir account context check karo, phir execution gate apply karo. Ye controlled model B2C aur B2B dono ke liye safer adoption path deta hai.
 
 ---
 
@@ -217,7 +230,11 @@ No black-box robot, no autonomous trading fantasy, no dense architecture diagram
 
 **Speaker note:**
 
-This slide is the core sales pitch. The product is not sold as an automatic money-making bot. It is sold as a safer AI trading operations layer. It connects broker context, strategy signals, and AI explanation, then applies execution gates before any order path. That makes the product easier to trust for both consumer-facing and business-facing use cases.
+Ye deck ka core pitch slide hai. Aldvra ko hum "automatic profit bot" ke roop mein sell nahi kar rahe. Trading mein aisa claim dangerous bhi hai aur trust ko damage bhi karta hai. Aldvra ka real value hai: safer AI trading operations layer.
+
+Ek example lete hain. Watchlist mein RVNL aur TCS hain. System broker se instrument resolve karta hai, candles fetch karta hai, strategies run karta hai, jaise SMA Crossover, RSI Mean Reversion, aur multi-indicator strategy. Phir AI reasoning layer result ko explain karti hai: signal kyun bana, context kya tha, aur action allowed hai ya nahi.
+
+Lekin final step mein execution gate aata hai. Gate check karta hai: permission enabled hai ya nahi, order side allowed hai ya nahi, market hours valid hain ya nahi, holdings ya purchased orders context available hai ya nahi, quantity rule pass hua ya nahi. Agar `AGENT_ALLOW_TRADING=false` hai, to system sirf advisory report dega. Ye separation hi Aldvra ka trust point hai: signal and reasoning ek side, controlled execution dusri side.
 
 ---
 
@@ -275,7 +292,11 @@ No technical system diagram, no source code, no tiny labels, no database schema,
 
 **Speaker note:**
 
-This is the proof slide. The current application already includes broker session handling, instrument lookup, market data, strategy evaluation, holdings and order context, AI scheduling, and execution gates. It also supports dry-run advisory mode today. That means it can inspect data and produce reports without placing real or simulated orders. Paper trading is a roadmap item, not the current mode.
+Ye slide proof ke liye hai: Aldvra sirf idea nahi hai, foundation already working hai. Current application broker session handle karti hai, access token restore karti hai, NSE instruments lookup kar sakti hai, historical candles fetch kar sakti hai, strategies evaluate kar sakti hai, holdings aur purchased orders check kar sakti hai, AI agent scheduled cycle chala sakta hai, aur execution gates apply kar sakta hai.
+
+Example story: agent configured watchlist mein RVNL, YESBANK, SUZLON, IRCON, IEX, VEDL jaise instruments ho sakte hain. Cycle run hota hai. System pehle service aur auth status check karta hai, phir instruments resolve karta hai, phir configured strategies run karta hai. Agar RVNL par BUY candidate aata hai, agent direct order nahi daalta. Pehle holdings, existing purchased orders, exchange, quantity, aur permission mode check hota hai.
+
+Important point investor ko clearly bolna hai: current mode dry-run advisory hai. Iska matlab system inspect, evaluate, aur report kar sakta hai, lekin real order ya simulated paper order create nahi karta. Paper trading roadmap mein hai. Ye honesty important hai, kyunki ye product ko credible banati hai.
 
 **Strategy note for speaker:**
 
@@ -340,7 +361,13 @@ No crowded market landscape, no app screenshots, no people photos, no logos, no 
 
 **Speaker note:**
 
-This is the monetization slide. For B2C businesses, the platform can power a premium trading assistant, watchlist monitor, or education product. For B2B businesses, it can become an advisory workflow, broker-connected add-on, or trader workstation component. The same core workflow can be packaged in different ways, which improves product leverage.
+Ye monetization slide hai. Aldvra ka core workflow ek hi hai, lekin packaging multiple business models mein ho sakti hai.
+
+B2C example: India mein Zerodha Kite, Groww, Upstox, Angel One, Dhan, 5paisa jaise retail trading and investing platforms large customer bases serve karte hain. Aise platforms apne premium users ko daily AI trading assistant de sakte hain. User apni watchlist mein RVNL, INFY, TCS, SBIN, SUZLON add karta hai. Aldvra cycle run karke simple report deta hai: "5 instruments checked, 3 strategies evaluated, 1 candidate needs review, execution disabled." Customer ko clarity milti hai bina black-box trading ke.
+
+B2B example: Zerodha Kite Connect ecosystem, DhanHQ Trading APIs, Upstox developer platform, Kotak Neo, ICICI Direct, aur broker/advisory technology teams jaise organizations ke liye Aldvra ek internal workflow layer ban sakta hai. Analysts approved instruments define karte hain, jaise INFY, TCS, HDFCBANK, SBIN. System same strategy checks run karta hai, AI summary banata hai, aur execution ko approval workflow ke peeche rakhta hai. Business ko benefit milta hai: repeatable process, safer controls, aur faster product delivery.
+
+Investor ke liye message: ye ek single-use tool nahi hai. Same engine B2C subscription assistant, B2B advisory workflow, broker add-on, aur trader workstation module ban sakta hai.
 
 ---
 
@@ -391,7 +418,11 @@ No dense Gantt chart, no technical backlog wall, no financial projections, no gu
 
 **Speaker note:**
 
-Close with the ask. The product already has a credible base: advisory reports, strategies, broker context, and execution gates. The next build should add paper trading, backtesting, approvals, risk dashboards, multi-user support, multi-broker support, audit, and production hardening. The sales message is simple: invest now to own the controlled AI trading layer before customers accept unsafe black-box automation as the default.
+Ye slide investor ask ke liye hai. Hum keh rahe hain ki current base credible hai: advisory reports, strategy engine, broker context, scheduling, aur execution gates already directionally available hain. Ab next step isko commercial-grade platform banana hai.
+
+Roadmap ko teen stages mein samjha sakte hain. Now stage mein dry-run advisory hai: system RVNL, YESBANK, INFY jaise instruments evaluate kar sakta hai aur report de sakta hai. Build stage mein paper trading add hoga, jahan simulated orders, virtual positions, aur paper P&L track hoga. Saath mein backtesting, approval workflow, aur risk dashboard aayega. Scale stage mein multi-user, multi-broker, audit logs, security, aur production hardening add hoga.
+
+Investment thesis ye hai: market AI trading tools ki taraf ja raha hai, lekin unsafe automation trust destroy kar sakta hai. Aldvra controlled AI trading layer own karne ka opportunity hai. Hum speed aur safety dono ko combine karna chahte hain.
 
 ---
 
@@ -446,7 +477,13 @@ No spreadsheet table, no tiny financial model, no specific price values, no comp
 
 **Speaker note:**
 
-Use this slide to make the investment ask concrete. The TCO model is built from four buckets. First is development: 4 backend developers, 2 frontend developers, 2 QA engineers, 2 DevOps engineers, 1 UX designer, and 1 lead engineer or technical architect. Second is cloud infrastructure, which should be estimated using the selected provider calculator for AWS, GCP, or Azure. Third is LLM cost, which depends on model choice, token volume, and agent run frequency. Fourth is the broker platform cost, including Kite Connect API and market data access. The right sales message is that TCO is not a black box; it can be controlled once usage assumptions are clear.
+Is final slide ka purpose investment ko concrete banana hai. Aldvra ka TCO four clear buckets mein divide hota hai, isliye cost planning transparent ho sakti hai.
+
+Pehla bucket development team hai: 4 backend developers, 2 frontend developers, 2 QA engineers, 2 DevOps engineers, 1 UX designer, aur 1 lead engineer ya technical architect. Ye team broker integration, strategy workflows, customer-facing UI, testing, production deployment, aur architecture safety build karegi.
+
+Second bucket cloud infrastructure hai. AWS, GCP, ya Azure mein compute, containers, Redis, database, monitoring, logs, secrets, backup, aur security cost estimate karna hoga. Third bucket LLM cost hai. Ye depend karega ki agent day mein kitni baar run hota hai, watchlist size kya hai, prompt size kya hai, aur hosted model use ho raha hai ya local model. Example: agar RVNL, INFY, TCS, YESBANK, SUZLON jaise 20 instruments har 5 minute evaluate hote hain, token usage aur model cost naturally badhegi.
+
+Fourth bucket broker platform cost hai, jisme Kite API, market data access, trading account, aur broker-side commercial requirements aa sakte hain. Investor ko yahan message simple dena hai: TCO unknown nahi hai. Once assumptions clear ho jayein, team, cloud, LLM, aur broker cost separately control aur optimize kiye ja sakte hain.
 
 ---
 
@@ -454,6 +491,12 @@ Use this slide to make the investment ask concrete. The TCO model is built from 
 
 - Zerodha describes Kite Connect as HTTP APIs for executing orders, managing portfolios, and accessing market data: https://zerodha.com/products/api/
 - Kite Connect API documentation describes APIs for trading platforms, real-time order execution, portfolio management, and market data: https://kite.trade/docs/connect/v3/
+- Zerodha describes Kite as its trading platform: https://zerodha.com/products/kite/
+- Upstox presents itself as an online trading and investing platform and also lists developer/API products: https://upstox.com/ and https://upstox.com/products/
+- Angel One describes its retail broking and trading app capabilities: https://www.angelone.in/
+- Dhan describes trading apps, DhanHQ APIs, and trader-focused platforms: https://dhan.co/ and https://dhan.co/trading-app/
+- Kotak Neo is presented by Kotak Securities as an online trading and investing app: https://play.google.com/store/apps/details?id=com.kotak.neo
+- ICICI Direct is presented as an online trading/investment platform by ICICI Securities: https://www.icicidirect.com/
 - SEBI’s 2025 circular is titled “Safer participation of retail investors in Algorithmic trading”: https://www.sebi.gov.in/legal/circulars/feb-2025/safer-participation-of-retail-investors-in-algorithmic-trading_91614.html
 - NSE publishes market timing and trading holiday references for Indian exchange context: https://www.nseindia.com/resources/exchange-communication-holidays
 - AWS provides an official pricing calculator for estimating cloud service costs: https://aws.amazon.com/aws-cost-management/aws-pricing-calculator/
@@ -475,4 +518,5 @@ Generate each slide as a separate image. After generation, check:
 - dry-run advisory mode is not shown as paper trading,
 - slide 6 shows paper trading as roadmap, not current state,
 - slide 7 shows placeholders and cost buckets, not fixed prices,
+- speaker notes read like investor narration, not internal notes,
 - labels are readable at presentation size.
